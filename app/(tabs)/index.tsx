@@ -1,39 +1,69 @@
-import { View, Text, FlatList, StyleSheet, Pressable } from 'react-native';
-import { Link } from 'expo-router';
+import { useEffect, useState } from 'react';
+import {
+    View, Text, FlatList, StyleSheet, Alert,
+} from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { isAfter, isWithinInterval } from 'date-fns';
 
-const mockTasks = [
-    { id: '1', title: 'Morning Workout', time: '7:00 AM - 7:30 AM', important: true },
-    { id: '2', title: 'Daily Planning', time: '7:30 AM - 8:00 AM', important: false },
-    { id: '3', title: 'Team Meeting', time: '9:00 AM - 9:45 AM', important: true },
-    { id: '4', title: 'Coding Session', time: '10:00 AM - 12:00 PM', important: false },
-];
+type Task = {
+    id: string;
+    title: string;
+    startTime: Date;
+    endTime: Date;
+    important: boolean;
+};
+
+const STORAGE_KEY = 'PLAN_TASKS';
 
 export default function TodayScreen() {
-    const currentTaskIndex = 1; // "Daily Planning" is current
-    const currentTask = mockTasks[currentTaskIndex];
-    const upcomingTasks = mockTasks.slice(currentTaskIndex + 1);
+    const [tasks, setTasks] = useState<Task[]>([]);
 
-    const renderTask = (task: typeof mockTasks[0], isCurrent = false) => (
+    useEffect(() => {
+        const loadTasks = async () => {
+            try {
+                const json = await AsyncStorage.getItem(STORAGE_KEY);
+                if (json) {
+                    const parsed = JSON.parse(json).map((t: any) => ({
+                        ...t,
+                        startTime: new Date(t.startTime),
+                        endTime: new Date(t.endTime),
+                    }));
+                    setTasks(parsed);
+                }
+            } catch (err) {
+                Alert.alert('Error loading tasks');
+            }
+        };
+        loadTasks();
+    }, []);
+
+    const now = new Date();
+
+    const currentTask = tasks.find(t =>
+        isWithinInterval(now, { start: t.startTime, end: t.endTime })
+    );
+
+    const upcomingTasks = tasks.filter(t => isAfter(t.startTime, now));
+
+    const renderTask = (task: Task, isCurrent = false) => (
         <View style={[styles.taskContainer, isCurrent && styles.currentTaskContainer]} key={task.id}>
             <View style={styles.taskTextWrapper}>
                 <Text style={[styles.taskTitle, isCurrent && styles.currentTaskTitle]} numberOfLines={1}>
                     {task.title}
                 </Text>
-                <Text style={styles.taskTime}>{task.time}</Text>
+                <Text style={styles.taskTime}>
+                    {task.startTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} -
+                    {task.endTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </Text>
             </View>
             {task.important && <View style={styles.importantDot} />}
-            <Link href={`/task/${task.id}`} asChild>
-                <Pressable>
-                    <Text style={styles.editLink}>Edit</Text>
-                </Pressable>
-            </Link>
         </View>
     );
 
     return (
         <View style={styles.container}>
             <Text style={styles.sectionTitle}>Now</Text>
-            {renderTask(currentTask, true)}
+            {currentTask ? renderTask(currentTask, true) : <Text>No current task</Text>}
 
             <Text style={[styles.sectionTitle, { marginTop: 32 }]}>Next Up</Text>
             <FlatList
@@ -67,9 +97,7 @@ const styles = StyleSheet.create({
         borderBottomWidth: 1,
         borderBottomColor: '#eee',
     },
-    currentTaskContainer: {
-        // No heavy styling here, just subtle emphasis via text color
-    },
+    currentTaskContainer: {},
     taskTextWrapper: {
         flex: 1,
         marginRight: 12,
@@ -94,10 +122,5 @@ const styles = StyleSheet.create({
         borderRadius: 4,
         backgroundColor: '#ff3b30',
         marginRight: 12,
-    },
-    editLink: {
-        fontSize: 14,
-        color: '#007AFF',
-        fontWeight: '500',
     },
 });
