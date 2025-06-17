@@ -302,6 +302,7 @@ const styles = StyleSheet.create({
         borderRadius: 8,
         alignItems: 'center',
         marginTop: 8,
+        paddingHorizontal: 16,
     },
     addButtonText: {
         color: 'white',
