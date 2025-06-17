@@ -3,7 +3,7 @@ import {
     View, Text, FlatList, StyleSheet, Alert,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { isAfter, isWithinInterval } from 'date-fns';
+import { isAfter, isBefore, isSameDay, isWithinInterval } from 'date-fns';
 
 type Task = {
     id: string;
@@ -39,11 +39,17 @@ export default function TodayScreen() {
 
     const now = new Date();
 
+    const earlierTasks = tasks
+        .filter(t => isBefore(t.endTime, now) && isSameDay(t.startTime, now))
+        .sort((a, b) => b.endTime.getTime() - a.endTime.getTime());
+
     const currentTask = tasks.find(t =>
         isWithinInterval(now, { start: t.startTime, end: t.endTime })
     );
 
-    const upcomingTasks = tasks.filter(t => isAfter(t.startTime, now));
+    const upcomingTasks = tasks
+        .filter(t => isAfter(t.startTime, now) && isSameDay(t.startTime, now))
+        .sort((a, b) => a.startTime.getTime() - b.startTime.getTime());
 
     const renderTask = (task: Task, isCurrent = false) => (
         <View style={[styles.taskContainer, isCurrent && styles.currentTaskContainer]} key={task.id}>
@@ -62,7 +68,14 @@ export default function TodayScreen() {
 
     return (
         <View style={styles.container}>
-            <Text style={styles.sectionTitle}>Now</Text>
+            <Text style={styles.sectionTitle}>Earlier Today</Text>
+            {earlierTasks.length > 0 ? (
+                earlierTasks.map(task => renderTask(task))
+            ) : (
+                <Text>No earlier tasks</Text>
+            )}
+
+            <Text style={[styles.sectionTitle, { marginTop: 32 }]}>Now</Text>
             {currentTask ? renderTask(currentTask, true) : <Text>No current task</Text>}
 
             <Text style={[styles.sectionTitle, { marginTop: 32 }]}>Next Up</Text>
