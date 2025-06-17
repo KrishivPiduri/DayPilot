@@ -28,6 +28,10 @@ export default function PlanScreen() {
     const [showStartPicker, setShowStartPicker] = useState(false);
     const [showEndPicker, setShowEndPicker] = useState(false);
 
+    // For editing
+    const [editModalVisible, setEditModalVisible] = useState(false);
+    const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
+
     useEffect(() => {
         loadTasks();
     }, []);
@@ -44,20 +48,69 @@ export default function PlanScreen() {
     const saveTasks = async (newTasks: Task[]) => {
         try {
             await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(newTasks));
+            setTasks(newTasks);
         } catch (err) {
             Alert.alert('Error saving tasks');
         }
     };
 
     const handleAddTask = () => {
-        if (!title) return Alert.alert('Missing title', 'Please enter a task title.');
+        if (!title.trim()) return Alert.alert('Missing title', 'Please enter a task title.');
         if (endTime <= startTime) return Alert.alert('Invalid time', 'End time must be after start time.');
 
-        const newTasks = [...tasks, { id: Date.now().toString(), title, startTime, endTime, important }];
-        setTasks(newTasks);
+        const newTasks = [...tasks, { id: Date.now().toString(), title: title.trim(), startTime, endTime, important }];
         saveTasks(newTasks);
 
         setTitle(''); setStartTime(new Date()); setEndTime(new Date()); setImportant(false);
+    };
+
+    // Open modal to edit selected task
+    const openEditModal = (task: Task) => {
+        setEditingTaskId(task.id);
+        setTitle(task.title);
+        setStartTime(task.startTime);
+        setEndTime(task.endTime);
+        setImportant(task.important);
+        setEditModalVisible(true);
+    };
+
+    const handleSaveEdit = () => {
+        if (!title.trim()) return Alert.alert('Missing title', 'Please enter a task title.');
+        if (endTime <= startTime) return Alert.alert('Invalid time', 'End time must be after start time.');
+        if (!editingTaskId) return;
+
+        const updatedTasks = tasks.map(t =>
+            t.id === editingTaskId ? { ...t, title: title.trim(), startTime, endTime, important } : t
+        );
+        saveTasks(updatedTasks);
+        closeEditModal();
+    };
+
+    const handleDelete = () => {
+        if (!editingTaskId) return;
+        Alert.alert(
+            'Delete Task',
+            'Are you sure you want to delete this task?',
+            [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                    text: 'Delete', style: 'destructive', onPress: () => {
+                        const filtered = tasks.filter(t => t.id !== editingTaskId);
+                        saveTasks(filtered);
+                        closeEditModal();
+                    }
+                }
+            ]
+        );
+    };
+
+    const closeEditModal = () => {
+        setEditModalVisible(false);
+        setEditingTaskId(null);
+        setTitle('');
+        setStartTime(new Date());
+        setEndTime(new Date());
+        setImportant(false);
     };
 
     const renderTimePickerModal = (visible: boolean, onClose: () => void, date: Date, onChange: (d: Date) => void) => {
@@ -96,13 +149,15 @@ export default function PlanScreen() {
                         <Text style={styles.hourLabel}>{format(hourStart, 'hh a')}</Text>
                         <View style={styles.taskRow}>
                             {hourTasks.map(task => (
-                                <View
+                                <TouchableOpacity
                                     key={task.id}
                                     style={[styles.taskBlock, task.important && styles.taskImportant]}
+                                    onPress={() => openEditModal(task)}
+                                    activeOpacity={0.7}
                                 >
-                                    <Text style={styles.taskText}>{task.title}</Text>
+                                    <Text style={styles.taskText} numberOfLines={1}>{task.title}</Text>
                                     <Text style={styles.taskTime}>{format(task.startTime, 'hh:mm a')} - {format(task.endTime, 'hh:mm a')}</Text>
-                                </View>
+                                </TouchableOpacity>
                             ))}
                         </View>
                     </View>
@@ -112,8 +167,8 @@ export default function PlanScreen() {
     );
 
     return (
-        <ScrollView style={styles.container}>
-            <ScrollView contentContainerStyle={styles.formContent}>
+        <ScrollView style={styles.container} keyboardShouldPersistTaps="handled">
+            <ScrollView contentContainerStyle={styles.formContent} keyboardShouldPersistTaps="handled">
                 <Text style={styles.heading}>Add Task</Text>
                 <Text style={styles.label}>Title</Text>
                 <TextInput style={styles.input} placeholder="Task Title" value={title} onChangeText={setTitle} />
@@ -135,9 +190,23 @@ export default function PlanScreen() {
                     <Switch value={important} onValueChange={setImportant} />
                 </View>
 
-                <TouchableOpacity style={styles.addButton} onPress={handleAddTask}>
-                    <Text style={styles.addButtonText}>Add Task</Text>
-                </TouchableOpacity>
+                {editingTaskId === null ? (
+                    <TouchableOpacity style={styles.addButton} onPress={handleAddTask}>
+                        <Text style={styles.addButtonText}>Add Task</Text>
+                    </TouchableOpacity>
+                ) : (
+                    <View style={styles.editButtonsRow}>
+                        <TouchableOpacity style={[styles.addButton, { backgroundColor: '#28a745' }]} onPress={handleSaveEdit}>
+                            <Text style={styles.addButtonText}>Save</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={[styles.addButton, { backgroundColor: '#dc3545', marginLeft: 12 }]} onPress={handleDelete}>
+                            <Text style={styles.addButtonText}>Delete</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={[styles.addButton, { backgroundColor: '#6c757d', marginLeft: 12 }]} onPress={closeEditModal}>
+                            <Text style={styles.addButtonText}>Cancel</Text>
+                        </TouchableOpacity>
+                    </View>
+                )}
 
                 <Text style={[styles.heading, { marginTop: 32 }]}>Your Schedule</Text>
             </ScrollView>
@@ -158,7 +227,14 @@ const styles = StyleSheet.create({
     hourBlock: { borderBottomWidth: 1, borderColor: '#eee', paddingVertical: 12 },
     hourLabel: { fontSize: 14, fontWeight: '400', color: '#666', marginBottom: 6 },
     taskRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-    taskBlock: { backgroundColor: '#222', padding: 8, borderRadius: 6, flex: 1, minWidth: '48%' },
+    taskBlock: {
+        backgroundColor: '#222',
+        padding: 8,
+        borderRadius: 6,
+        flex: 1,
+        minWidth: '48%',
+        marginBottom: 8,
+    },
     taskImportant: { backgroundColor: '#e63946' },
     taskText: { color: '#fff', fontWeight: '500' },
     taskTime: { color: '#ddd', fontSize: 12 },
@@ -167,5 +243,6 @@ const styles = StyleSheet.create({
     picker: { width: '100%', height: 180 },
     formContent: { paddingBottom: 24 },
     addButton: { backgroundColor: '#007AFF', paddingVertical: 12, borderRadius: 8, alignItems: 'center', marginTop: 8 },
-    addButtonText: { color: '#fff', fontSize: 16, fontWeight: '500' }
+    addButtonText: { color: '#fff', fontSize: 16, fontWeight: '500' },
+    editButtonsRow: { flexDirection: 'row', marginTop: 8, marginBottom: 24 }
 });

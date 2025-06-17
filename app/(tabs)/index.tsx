@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import {
     View, Text, FlatList, StyleSheet, Alert,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { isAfter, isBefore, isSameDay, isWithinInterval } from 'date-fns';
+import { useFocusEffect } from '@react-navigation/native';
 
 type Task = {
     id: string;
@@ -18,24 +19,28 @@ const STORAGE_KEY = 'PLAN_TASKS';
 export default function TodayScreen() {
     const [tasks, setTasks] = useState<Task[]>([]);
 
-    useEffect(() => {
-        const loadTasks = async () => {
-            try {
-                const json = await AsyncStorage.getItem(STORAGE_KEY);
-                if (json) {
-                    const parsed = JSON.parse(json).map((t: any) => ({
-                        ...t,
-                        startTime: new Date(t.startTime),
-                        endTime: new Date(t.endTime),
-                    }));
-                    setTasks(parsed);
+    useFocusEffect(
+        React.useCallback(() => {
+            const loadTasks = async () => {
+                try {
+                    const json = await AsyncStorage.getItem(STORAGE_KEY);
+                    if (json) {
+                        const parsed = JSON.parse(json).map((t: any) => ({
+                            ...t,
+                            startTime: new Date(t.startTime),
+                            endTime: new Date(t.endTime),
+                        }));
+                        setTasks(parsed);
+                    } else {
+                        setTasks([]);
+                    }
+                } catch (err) {
+                    Alert.alert('Error loading tasks');
                 }
-            } catch (err) {
-                Alert.alert('Error loading tasks');
-            }
-        };
-        loadTasks();
-    }, []);
+            };
+            loadTasks();
+        }, [])
+    );
 
     const now = new Date();
 
