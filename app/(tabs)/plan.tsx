@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import {
-    View, Text, TextInput, Button, FlatList, StyleSheet,
-    Switch, Pressable, Alert, Platform, Modal, ScrollView, TouchableOpacity
+    View, Text, TextInput, Button, ScrollView, StyleSheet,
+    Switch, Pressable, Alert, Platform, Modal, TouchableOpacity
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { format, setHours, setMinutes, isBefore, isAfter, isEqual } from 'date-fns';
+import { format, setHours, setMinutes, isBefore, isAfter, isEqual, differenceInMinutes } from 'date-fns';
 
 const STORAGE_KEY = 'PLAN_TASKS';
 
@@ -18,6 +18,8 @@ type Task = {
 };
 
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
+
+const TIMELINE_HEIGHT = 24 * 60; // 1440 pixels for 24 hours, 1 px per minute
 
 export default function PlanScreen() {
     const [tasks, setTasks] = useState<Task[]>([]);
@@ -134,35 +136,52 @@ export default function PlanScreen() {
         );
     };
 
-    const renderScheduleView = () => (
-        <ScrollView style={styles.scheduleContainer} contentContainerStyle={styles.scheduleContent}>
-            {HOURS.map(hour => {
-                const hourStart = setMinutes(setHours(new Date(), hour), 0);
-                const hourEnd = setMinutes(setHours(new Date(), hour), 59);
-                const hourTasks = tasks.filter(task =>
-                    (isBefore(task.startTime, hourEnd) && isAfter(task.endTime, hourStart)) ||
-                    isEqual(task.startTime, hourStart) || isEqual(task.endTime, hourEnd)
-                );
+    // Convert a Date to minutes from midnight
+    const minutesFromMidnight = (date: Date) => date.getHours() * 60 + date.getMinutes();
 
-                return (
-                    <View key={hour} style={styles.hourBlock}>
-                        <Text style={styles.hourLabel}>{format(hourStart, 'hh a')}</Text>
-                        <View style={styles.taskRow}>
-                            {hourTasks.map(task => (
-                                <TouchableOpacity
-                                    key={task.id}
-                                    style={[styles.taskBlock, task.important && styles.taskImportant]}
-                                    onPress={() => openEditModal(task)}
-                                    activeOpacity={0.7}
-                                >
-                                    <Text style={styles.taskText} numberOfLines={1}>{task.title}</Text>
-                                    <Text style={styles.taskTime}>{format(task.startTime, 'hh:mm a')} - {format(task.endTime, 'hh:mm a')}</Text>
-                                </TouchableOpacity>
-                            ))}
-                        </View>
-                    </View>
-                );
-            })}
+    const renderScheduleView = () => (
+        <ScrollView style={styles.scheduleContainer} contentContainerStyle={{ paddingBottom: 100 }}>
+            <View style={styles.timelineContainer}>
+                {/* Hour labels on the left */}
+                <View style={styles.hourLabels}>
+                    {HOURS.map(hour => {
+                        const hourDate = setMinutes(setHours(new Date(), hour), 0);
+                        return (
+                            <Text key={hour} style={styles.hourLabel}>
+                                {format(hourDate, 'ha')}
+                            </Text>
+                        );
+                    })}
+                </View>
+
+                {/* Timeline with relative position */}
+                <View style={styles.timeline}>
+                    {tasks.map(task => {
+                        const startMins = minutesFromMidnight(task.startTime);
+                        const endMins = minutesFromMidnight(task.endTime);
+                        const top = startMins; // 1px per minute
+                        const height = Math.max(endMins - startMins, 15); // minimum height 15px for visibility
+
+                        return (
+                            <TouchableOpacity
+                                key={task.id}
+                                style={[
+                                    styles.taskBlock,
+                                    task.important && styles.taskImportant,
+                                    { top, height }
+                                ]}
+                                onPress={() => openEditModal(task)}
+                                activeOpacity={0.7}
+                            >
+                                <Text style={styles.taskText} numberOfLines={1}>{task.title}</Text>
+                                <Text style={styles.taskTime}>
+                                    {format(task.startTime, 'hh:mm a')} - {format(task.endTime, 'hh:mm a')}
+                                </Text>
+                            </TouchableOpacity>
+                        );
+                    })}
+                </View>
+            </View>
         </ScrollView>
     );
 
@@ -223,26 +242,76 @@ const styles = StyleSheet.create({
     timeBox: { borderBottomWidth: 1, borderColor: '#ccc', paddingVertical: 12, marginBottom: 16 },
     row: { flexDirection: 'row', alignItems: 'center', marginBottom: 16, justifyContent: 'space-between' },
     scheduleContainer: { flex: 1, marginTop: 8 },
-    scheduleContent: { paddingBottom: 100 },
-    hourBlock: { borderBottomWidth: 1, borderColor: '#eee', paddingVertical: 12 },
-    hourLabel: { fontSize: 14, fontWeight: '400', color: '#666', marginBottom: 6 },
-    taskRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-    taskBlock: {
-        backgroundColor: '#222',
-        padding: 8,
-        borderRadius: 6,
-        flex: 1,
-        minWidth: '48%',
-        marginBottom: 8,
-    },
-    taskImportant: { backgroundColor: '#e63946' },
-    taskText: { color: '#fff', fontWeight: '500' },
-    taskTime: { color: '#ddd', fontSize: 12 },
-    modalBackdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.3)' },
-    modalContent: { backgroundColor: '#fff', padding: 16, borderTopLeftRadius: 12, borderTopRightRadius: 12 },
-    picker: { width: '100%', height: 180 },
     formContent: { paddingBottom: 24 },
-    addButton: { backgroundColor: '#007AFF', paddingVertical: 12, borderRadius: 8, alignItems: 'center', marginTop: 8 },
-    addButtonText: { color: '#fff', fontSize: 16, fontWeight: '500' },
-    editButtonsRow: { flexDirection: 'row', marginTop: 8, marginBottom: 24 }
+
+    timelineContainer: {
+        flexDirection: 'row',
+        position: 'relative',
+        height: TIMELINE_HEIGHT,
+        marginTop: 16,
+    },
+    hourLabels: {
+        width: 50,
+        borderRightWidth: 1,
+        borderColor: '#ccc',
+        alignItems: 'flex-end',
+        paddingRight: 8,
+    },
+    hourLabel: {
+        height: 60, // 60 px per hour
+        fontSize: 12,
+        color: '#666',
+        textAlign: 'right',
+        paddingTop: 2,
+    },
+    timeline: {
+        flex: 1,
+        position: 'relative',
+        borderLeftWidth: 1,
+        borderColor: '#ccc',
+    },
+    taskBlock: {
+        position: 'absolute',
+        left: 8,
+        right: 8,
+        backgroundColor: '#222',
+        borderRadius: 6,
+        padding: 8,
+        zIndex: 1,
+    },
+    taskImportant: {
+        backgroundColor: '#e63946',
+    },
+    taskText: {
+        color: '#fff',
+        fontWeight: '500',
+        fontSize: 14,
+    },
+    taskTime: {
+        color: '#ddd',
+        fontSize: 12,
+        marginTop: 2,
+    },
+
+    modalBackdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.3)' },
+    modalContent: { backgroundColor: '#fff', padding: 20 },
+
+    addButton: {
+        backgroundColor: '#007bff',
+        paddingVertical: 14,
+        borderRadius: 8,
+        alignItems: 'center',
+        marginTop: 8,
+    },
+    addButtonText: {
+        color: 'white',
+        fontWeight: '600',
+        fontSize: 16,
+    },
+
+    editButtonsRow: {
+        flexDirection: 'row',
+        justifyContent: 'flex-start',
+        marginTop: 8,
+    },
 });
