@@ -5,53 +5,40 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { format, setHours, setMinutes, isBefore, isAfter, isEqual, differenceInMinutes } from 'date-fns';
+import { format, setHours, setMinutes } from 'date-fns';
 
 const STORAGE_KEY = 'PLAN_TASKS';
 
-type Task = {
-    id: string;
-    title: string;
-    startTime: Date;
-    endTime: Date;
-    important: boolean;
-};
-
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
-
 const TIMELINE_HEIGHT = 24 * 60; // 1440 pixels for 24 hours, 1 px per minute
 
 export default function PlanScreen() {
-    const [tasks, setTasks] = useState<Task[]>([]);
+    const [tasks, setTasks] = useState([]);
     const [title, setTitle] = useState('');
-    const [startTime, setStartTime] = useState<Date>(new Date());
-    const [endTime, setEndTime] = useState<Date>(new Date());
+    const [startTime, setStartTime] = useState(new Date());
+    const [endTime, setEndTime] = useState(new Date());
     const [important, setImportant] = useState(false);
     const [showStartPicker, setShowStartPicker] = useState(false);
     const [showEndPicker, setShowEndPicker] = useState(false);
-
-    // For editing
     const [editModalVisible, setEditModalVisible] = useState(false);
-    const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
+    const [editingTaskId, setEditingTaskId] = useState(null);
 
-    useEffect(() => {
-        loadTasks();
-    }, []);
+    useEffect(() => { loadTasks(); }, []);
 
     const loadTasks = async () => {
         try {
             const json = await AsyncStorage.getItem(STORAGE_KEY);
-            if (json) setTasks(JSON.parse(json).map((t: any) => ({ ...t, startTime: new Date(t.startTime), endTime: new Date(t.endTime) })));
-        } catch (err) {
+            if (json) setTasks(JSON.parse(json).map(t => ({ ...t, startTime: new Date(t.startTime), endTime: new Date(t.endTime) })));
+        } catch {
             Alert.alert('Error loading tasks');
         }
     };
 
-    const saveTasks = async (newTasks: Task[]) => {
+    const saveTasks = async (newTasks) => {
         try {
             await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(newTasks));
             setTasks(newTasks);
-        } catch (err) {
+        } catch {
             Alert.alert('Error saving tasks');
         }
     };
@@ -66,8 +53,7 @@ export default function PlanScreen() {
         setTitle(''); setStartTime(new Date()); setEndTime(new Date()); setImportant(false);
     };
 
-    // Open modal to edit selected task
-    const openEditModal = (task: Task) => {
+    const openEditModal = (task) => {
         setEditingTaskId(task.id);
         setTitle(task.title);
         setStartTime(task.startTime);
@@ -90,20 +76,14 @@ export default function PlanScreen() {
 
     const handleDelete = () => {
         if (!editingTaskId) return;
-        Alert.alert(
-            'Delete Task',
-            'Are you sure you want to delete this task?',
-            [
-                { text: 'Cancel', style: 'cancel' },
-                {
-                    text: 'Delete', style: 'destructive', onPress: () => {
-                        const filtered = tasks.filter(t => t.id !== editingTaskId);
-                        saveTasks(filtered);
-                        closeEditModal();
-                    }
-                }
-            ]
-        );
+        Alert.alert('Delete Task', 'Are you sure?', [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Delete', style: 'destructive', onPress: () => {
+                    const filtered = tasks.filter(t => t.id !== editingTaskId);
+                    saveTasks(filtered);
+                    closeEditModal();
+                }}
+        ]);
     };
 
     const closeEditModal = () => {
@@ -115,7 +95,7 @@ export default function PlanScreen() {
         setImportant(false);
     };
 
-    const renderTimePickerModal = (visible: boolean, onClose: () => void, date: Date, onChange: (d: Date) => void) => {
+    const renderTimePickerModal = (visible, onClose, date, onChange) => {
         if (Platform.OS !== 'ios') return null;
         return (
             <Modal transparent visible={visible} animationType="slide">
@@ -136,31 +116,29 @@ export default function PlanScreen() {
         );
     };
 
-    // Convert a Date to minutes from midnight
-    const minutesFromMidnight = (date: Date) => date.getHours() * 60 + date.getMinutes();
+    const minutesFromMidnight = (date) => date.getHours() * 60 + date.getMinutes();
 
     const renderScheduleView = () => (
         <ScrollView style={styles.scheduleContainer} contentContainerStyle={{ paddingBottom: 100 }}>
             <View style={styles.timelineContainer}>
-                {/* Hour labels on the left */}
                 <View style={styles.hourLabels}>
-                    {HOURS.map(hour => {
-                        const hourDate = setMinutes(setHours(new Date(), hour), 0);
-                        return (
-                            <Text key={hour} style={styles.hourLabel}>
-                                {format(hourDate, 'ha')}
-                            </Text>
-                        );
-                    })}
+                    {HOURS.map(hour => (
+                        <Text key={hour} style={styles.hourLabel}>
+                            {format(setMinutes(setHours(new Date(), hour), 0), 'ha')}
+                        </Text>
+                    ))}
                 </View>
 
-                {/* Timeline with relative position */}
                 <View style={styles.timeline}>
+                    {HOURS.map(hour => (
+                        <View key={`line-${hour}`} style={[styles.hourLine, { top: hour * 60 }]} />
+                    ))}
+
                     {tasks.map(task => {
                         const startMins = minutesFromMidnight(task.startTime);
                         const endMins = minutesFromMidnight(task.endTime);
-                        const top = startMins; // 1px per minute
-                        const height = Math.max(endMins - startMins, 15); // minimum height 15px for visibility
+                        const top = startMins;
+                        const height = Math.max(endMins - startMins, 15);
 
                         return (
                             <TouchableOpacity
@@ -258,7 +236,7 @@ const styles = StyleSheet.create({
         paddingRight: 8,
     },
     hourLabel: {
-        height: 60, // 60 px per hour
+        height: 60,
         fontSize: 12,
         color: '#666',
         textAlign: 'right',
@@ -270,6 +248,13 @@ const styles = StyleSheet.create({
         borderLeftWidth: 1,
         borderColor: '#ccc',
     },
+    hourLine: {
+        position: 'absolute',
+        left: 0,
+        right: 0,
+        height: 1,
+        backgroundColor: '#ddd',
+    },
     taskBlock: {
         position: 'absolute',
         left: 8,
@@ -279,19 +264,9 @@ const styles = StyleSheet.create({
         padding: 8,
         zIndex: 1,
     },
-    taskImportant: {
-        backgroundColor: '#e63946',
-    },
-    taskText: {
-        color: '#fff',
-        fontWeight: '500',
-        fontSize: 14,
-    },
-    taskTime: {
-        color: '#ddd',
-        fontSize: 12,
-        marginTop: 2,
-    },
+    taskImportant: { backgroundColor: '#e63946' },
+    taskText: { color: '#fff', fontWeight: '500', fontSize: 14 },
+    taskTime: { color: '#ddd', fontSize: 12, marginTop: 2 },
 
     modalBackdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.3)' },
     modalContent: { backgroundColor: '#fff', padding: 20 },
@@ -304,15 +279,6 @@ const styles = StyleSheet.create({
         marginTop: 8,
         paddingHorizontal: 16,
     },
-    addButtonText: {
-        color: 'white',
-        fontWeight: '600',
-        fontSize: 16,
-    },
-
-    editButtonsRow: {
-        flexDirection: 'row',
-        justifyContent: 'flex-start',
-        marginTop: 8,
-    },
+    addButtonText: { color: 'white', fontWeight: '600', fontSize: 16 },
+    editButtonsRow: { flexDirection: 'row', justifyContent: 'flex-start', marginTop: 8 },
 });
