@@ -58,16 +58,13 @@ export default function PlanScreen() {
     const loadTasks = async () => {
         try {
             const json = await AsyncStorage.getItem(STORAGE_KEY);
-            if (json) setTasks(JSON.parse(json).map((t: {
-                startTime: string | number | Date;
-                endTime: string | number | Date;
-            }) => ({...t, startTime: new Date(t.startTime), endTime: new Date(t.endTime)})));
+            if (json) setTasks(JSON.parse(json).map((t) => ({...t, startTime: new Date(t.startTime), endTime: new Date(t.endTime)})));
         } catch {
             Alert.alert('Error loading tasks');
         }
     };
 
-    const saveTasks = async (newTasks: ((prevState: never[]) => never[]) | any[]) => {
+    const saveTasks = async (newTasks) => {
         try {
             await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(newTasks));
             setTasks(newTasks);
@@ -132,7 +129,7 @@ export default function PlanScreen() {
         ]);
     };
 
-    const renderTimePickerModal = (visible: boolean | undefined, onClose: ((event: GestureResponderEvent) => void) | undefined, date: Date, onChange: { (value: React.SetStateAction<Date>): void; (value: React.SetStateAction<Date>): void; (arg0: Date): any; }) => {
+    const renderTimePickerModal = (visible, onClose, date, onChange) => {
         if (Platform.OS !== 'ios') return null;
         return (
             <Modal transparent visible={visible} animationType="slide">
@@ -153,7 +150,7 @@ export default function PlanScreen() {
         );
     };
 
-    const minutesFromMidnight = (date: { getHours: () => number; getMinutes: () => number; }) => date.getHours() * 60 + date.getMinutes();
+    const minutesFromMidnight = (date) => date.getHours() * 60 + date.getMinutes();
 
     const renderScheduleView = () => (
         <ScrollView style={styles.scheduleContainer} contentContainerStyle={{ paddingBottom: 100 }}>
@@ -177,13 +174,27 @@ export default function PlanScreen() {
                         const top = startMins;
                         const height = Math.max(endMins - startMins, 15);
 
+                        const overlapping = tasks.filter(t => {
+                            const s = minutesFromMidnight(t.startTime);
+                            const e = minutesFromMidnight(t.endTime);
+                            return (s < endMins && e > startMins);
+                        });
+                        const idx = overlapping.findIndex(t => t.id === task.id);
+                        const width = 100 / overlapping.length;
+
                         return (
                             <TouchableOpacity
                                 key={task.id}
                                 style={[
                                     styles.taskBlock,
                                     task.important && styles.taskImportant,
-                                    { top, height }
+                                    {
+                                        top,
+                                        height,
+                                        width: `${width}%`,
+                                        left: `${width * idx}%`,
+                                        position: 'absolute'
+                                    }
                                 ]}
                                 onPress={() => openEditModal(task)}
                                 activeOpacity={0.7}
@@ -249,7 +260,7 @@ export default function PlanScreen() {
     );
 }
 
-async function schedulePushNotification(title: string, taskStartTime: string | number | Date) {
+async function schedulePushNotification(title, taskStartTime) {
     const fiveMinutesBefore = Math.floor((new Date(taskStartTime).getTime() - Date.now()) / 60000) - 5;
     console.log("Time",fiveMinutesBefore.toString())
     console.log("Start time", taskStartTime);
@@ -303,7 +314,6 @@ async function registerForPushNotificationsAsync() {
     return token;
 }
 
-
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: '#fff', paddingTop: 48, paddingBottom: 32, paddingHorizontal: 16 },
     heading: { fontSize: 20, fontWeight: '500', marginBottom: 16, color: '#111' },
@@ -349,8 +359,6 @@ const styles = StyleSheet.create({
     },
     taskBlock: {
         position: 'absolute',
-        left: 8,
-        right: 8,
         backgroundColor: '#222',
         borderRadius: 6,
         padding: 8,
