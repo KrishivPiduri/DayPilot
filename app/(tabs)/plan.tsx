@@ -1,16 +1,29 @@
 import React, { useState, useEffect } from 'react';
 import {
     View, Text, TextInput, Button, ScrollView, StyleSheet,
-    Switch, Pressable, Alert, Platform, Modal, TouchableOpacity
+    Switch, Pressable, Alert, Platform, Modal, TouchableOpacity,
+    GestureResponderEvent
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { format, setHours, setMinutes } from 'date-fns';
+import {format, setHours, setMinutes} from 'date-fns';
+import * as Device from 'expo-device';
+import * as Notifications from 'expo-notifications';
+import Constants from 'expo-constants';
+
+Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+        shouldPlaySound: false,
+        shouldSetBadge: false,
+        shouldShowBanner: true,
+        shouldShowList: true,
+    }),
+});
 
 const STORAGE_KEY = 'PLAN_TASKS';
 
-const HOURS = Array.from({ length: 24 }, (_, i) => i);
-const TIMELINE_HEIGHT = 24 * 60; // 1440 pixels for 24 hours, 1 px per minute
+const HOURS = Array.from({length: 24}, (_, i) => i);
+const TIMELINE_HEIGHT = 24 * 60;
 
 export default function PlanScreen() {
     const [tasks, setTasks] = useState([]);
@@ -20,21 +33,41 @@ export default function PlanScreen() {
     const [important, setImportant] = useState(false);
     const [showStartPicker, setShowStartPicker] = useState(false);
     const [showEndPicker, setShowEndPicker] = useState(false);
-    const [editModalVisible, setEditModalVisible] = useState(false);
     const [editingTaskId, setEditingTaskId] = useState(null);
 
-    useEffect(() => { loadTasks(); }, []);
+    useEffect(() => {
+
+        const notificationListener = Notifications.addNotificationReceivedListener(notification => {
+            console.log('Notification received:', notification);
+        });
+
+        const responseListener = Notifications.addNotificationResponseReceivedListener(response => {
+            console.log('Notification response:', response);
+        });
+
+        return () => {
+            notificationListener.remove();
+            responseListener.remove();
+        };
+    }, []);
+
+    useEffect(() => {
+        loadTasks();
+    }, []);
 
     const loadTasks = async () => {
         try {
             const json = await AsyncStorage.getItem(STORAGE_KEY);
-            if (json) setTasks(JSON.parse(json).map(t => ({ ...t, startTime: new Date(t.startTime), endTime: new Date(t.endTime) })));
+            if (json) setTasks(JSON.parse(json).map((t: {
+                startTime: string | number | Date;
+                endTime: string | number | Date;
+            }) => ({...t, startTime: new Date(t.startTime), endTime: new Date(t.endTime)})));
         } catch {
             Alert.alert('Error loading tasks');
         }
     };
 
-    const saveTasks = async (newTasks) => {
+    const saveTasks = async (newTasks: ((prevState: never[]) => never[]) | any[]) => {
         try {
             await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(newTasks));
             setTasks(newTasks);
@@ -47,10 +80,14 @@ export default function PlanScreen() {
         if (!title.trim()) return Alert.alert('Missing title', 'Please enter a task title.');
         if (endTime <= startTime) return Alert.alert('Invalid time', 'End time must be after start time.');
 
-        const newTasks = [...tasks, { id: Date.now().toString(), title: title.trim(), startTime, endTime, important }];
+        const newTask = {id: Date.now().toString(), title: title.trim(), startTime, endTime, important};
+        const newTasks = [...tasks, newTask];
         saveTasks(newTasks);
-
-        setTitle(''); setStartTime(new Date()); setEndTime(new Date()); setImportant(false);
+        schedulePushNotification(newTask.title, startTime);
+        setTitle('');
+        setStartTime(new Date());
+        setEndTime(new Date());
+        setImportant(false);
     };
 
     const openEditModal = (task) => {
@@ -59,7 +96,6 @@ export default function PlanScreen() {
         setStartTime(task.startTime);
         setEndTime(task.endTime);
         setImportant(task.important);
-        setEditModalVisible(true);
     };
 
     const handleSaveEdit = () => {
@@ -68,26 +104,9 @@ export default function PlanScreen() {
         if (!editingTaskId) return;
 
         const updatedTasks = tasks.map(t =>
-            t.id === editingTaskId ? { ...t, title: title.trim(), startTime, endTime, important } : t
+            t.id === editingTaskId ? {...t, title: title.trim(), startTime, endTime, important} : t
         );
         saveTasks(updatedTasks);
-        closeEditModal();
-    };
-
-    const handleDelete = () => {
-        if (!editingTaskId) return;
-        Alert.alert('Delete Task', 'Are you sure?', [
-            { text: 'Cancel', style: 'cancel' },
-            { text: 'Delete', style: 'destructive', onPress: () => {
-                    const filtered = tasks.filter(t => t.id !== editingTaskId);
-                    saveTasks(filtered);
-                    closeEditModal();
-                }}
-        ]);
-    };
-
-    const closeEditModal = () => {
-        setEditModalVisible(false);
         setEditingTaskId(null);
         setTitle('');
         setStartTime(new Date());
@@ -95,7 +114,25 @@ export default function PlanScreen() {
         setImportant(false);
     };
 
-    const renderTimePickerModal = (visible, onClose, date, onChange) => {
+    const handleDelete = () => {
+        if (!editingTaskId) return;
+        Alert.alert('Delete Task', 'Are you sure?', [
+            {text: 'Cancel', style: 'cancel'},
+            {
+                text: 'Delete', style: 'destructive', onPress: () => {
+                    const filtered = tasks.filter(t => t.id !== editingTaskId);
+                    saveTasks(filtered);
+                    setEditingTaskId(null);
+                    setTitle('');
+                    setStartTime(new Date());
+                    setEndTime(new Date());
+                    setImportant(false);
+                }
+            }
+        ]);
+    };
+
+    const renderTimePickerModal = (visible: boolean | undefined, onClose: ((event: GestureResponderEvent) => void) | undefined, date: Date, onChange: { (value: React.SetStateAction<Date>): void; (value: React.SetStateAction<Date>): void; (arg0: Date): any; }) => {
         if (Platform.OS !== 'ios') return null;
         return (
             <Modal transparent visible={visible} animationType="slide">
@@ -105,9 +142,9 @@ export default function PlanScreen() {
                             mode="time"
                             display="spinner"
                             value={date}
+                            themeVariant="light"
                             onChange={(_, d) => d && onChange(d)}
                             style={styles.picker}
-                            textColor="#000"
                         />
                         <Button title="Done" onPress={onClose} />
                     </View>
@@ -116,7 +153,7 @@ export default function PlanScreen() {
         );
     };
 
-    const minutesFromMidnight = (date) => date.getHours() * 60 + date.getMinutes();
+    const minutesFromMidnight = (date: { getHours: () => number; getMinutes: () => number; }) => date.getHours() * 60 + date.getMinutes();
 
     const renderScheduleView = () => (
         <ScrollView style={styles.scheduleContainer} contentContainerStyle={{ paddingBottom: 100 }}>
@@ -199,7 +236,7 @@ export default function PlanScreen() {
                         <TouchableOpacity style={[styles.addButton, { backgroundColor: '#dc3545', marginLeft: 12 }]} onPress={handleDelete}>
                             <Text style={styles.addButtonText}>Delete</Text>
                         </TouchableOpacity>
-                        <TouchableOpacity style={[styles.addButton, { backgroundColor: '#6c757d', marginLeft: 12 }]} onPress={closeEditModal}>
+                        <TouchableOpacity style={[styles.addButton, { backgroundColor: '#6c757d', marginLeft: 12 }]} onPress={() => setEditingTaskId(null)}>
                             <Text style={styles.addButtonText}>Cancel</Text>
                         </TouchableOpacity>
                     </View>
@@ -211,6 +248,61 @@ export default function PlanScreen() {
         </ScrollView>
     );
 }
+
+async function schedulePushNotification(title: string, taskStartTime: string | number | Date) {
+    const fiveMinutesBefore = Math.floor((new Date(taskStartTime).getTime() - Date.now()) / 60000) - 5;
+    console.log("Time",fiveMinutesBefore.toString())
+    console.log("Start time", taskStartTime);
+    await Notifications.scheduleNotificationAsync({
+        content: {
+            title: `Reminder: ${title}`,
+            body: 'Your task starts in 5 minutes.',
+        },
+        trigger: {
+            type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
+            seconds: fiveMinutesBefore*60
+        },
+    });
+}
+
+async function registerForPushNotificationsAsync() {
+    let token;
+
+    if (Platform.OS === 'android') {
+        await Notifications.setNotificationChannelAsync('default', {
+            name: 'default',
+            importance: Notifications.AndroidImportance.MAX,
+            vibrationPattern: [0, 250, 250, 250],
+            lightColor: '#FF231F7C',
+        });
+    }
+
+    if (Device.isDevice) {
+        const { status: existingStatus } = await Notifications.getPermissionsAsync();
+        let finalStatus = existingStatus;
+        if (existingStatus !== 'granted') {
+            const { status } = await Notifications.requestPermissionsAsync();
+            finalStatus = status;
+        }
+        if (finalStatus !== 'granted') {
+            alert('Failed to get push token for push notification!');
+            return;
+        }
+        try {
+            const projectId = Constants?.expoConfig?.extra?.eas?.projectId || Constants?.easConfig?.projectId;
+            if (!projectId) throw new Error('Project ID not found');
+            token = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
+            console.log(token);
+        } catch (e) {
+            token = `${e}`;
+        }
+    } else {
+        alert('Must use physical device for Push Notifications');
+    }
+
+    return token;
+}
+
 
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: '#fff', paddingTop: 48, paddingBottom: 32, paddingHorizontal: 16 },
