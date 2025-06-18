@@ -3,9 +3,11 @@ import { View, Text, Pressable, Platform, TextInput, StyleSheet } from 'react-na
 import DateTimePicker from '@react-native-community/datetimepicker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Localization from 'expo-localization';
+import * as Notifications from 'expo-notifications';
 
 const TIMEZONE_KEY = 'settings_timezone';
 const REMINDER_TIME_KEY = 'settings_reminder_time';
+const NOTIFICATION_ID_KEY = 'settings_notification_id';
 
 export default function SettingsPage() {
     const [timezone, setTimezone] = useState(Localization.timezone);
@@ -21,9 +23,45 @@ export default function SettingsPage() {
         })();
     }, []);
 
+    const scheduleReminderNotification = async (time) => {
+        // Cancel existing scheduled notification
+        const existingId = await AsyncStorage.getItem(NOTIFICATION_ID_KEY);
+        if (existingId) {
+            try { await Notifications.cancelScheduledNotificationAsync(existingId); } catch {}
+        }
+
+        // Calculate seconds until next occurrence
+        const now = Date.now();
+        const nextTrigger = new Date();
+        nextTrigger.setHours(time.getHours(), time.getMinutes(), 0, 0);
+        let seconds = Math.floor((nextTrigger.getTime() - now) / 1000);
+        // If time is past, schedule for next day
+        if (seconds <= 0) {
+            seconds += 24 * 60 * 60;
+        }
+
+        // Schedule with repeating interval
+        const identifier = await Notifications.scheduleNotificationAsync({
+            content: {
+                title: "Schedule Your Day",
+                body: "Don't forget to plan out your day!",
+                sound: true,
+            },
+            trigger: {
+                type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
+                seconds: seconds,
+                repeats: true,
+            },
+        });
+
+        await AsyncStorage.setItem(NOTIFICATION_ID_KEY, identifier);
+    };
+
     const saveSettings = async () => {
         await AsyncStorage.setItem(TIMEZONE_KEY, timezone);
         await AsyncStorage.setItem(REMINDER_TIME_KEY, reminderTime.toISOString());
+        // Only schedules notification on save, at computed interval
+        await scheduleReminderNotification(reminderTime);
         setShowTimePicker(false);
     };
 
@@ -51,11 +89,12 @@ export default function SettingsPage() {
                         mode="time"
                         is24Hour={true}
                         display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                        themeVariant={"light"}
+                        themeVariant="light"
                         onChange={(event, selectedDate) => {
-                            const currentDate = selectedDate || reminderTime;
-                            setShowTimePicker(Platform.OS === 'ios');
-                            setReminderTime(currentDate);
+                            if (event.type !== 'dismissed' && selectedDate) {
+                                setReminderTime(selectedDate);
+                            }
+                            if (Platform.OS !== 'ios') setShowTimePicker(false);
                         }}
                     />
                 )}
