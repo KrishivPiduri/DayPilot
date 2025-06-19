@@ -19,28 +19,32 @@ export default function SettingsPage() {
             const storedTimezone = await AsyncStorage.getItem(TIMEZONE_KEY);
             const storedReminderTime = await AsyncStorage.getItem(REMINDER_TIME_KEY);
             if (storedTimezone) setTimezone(storedTimezone);
-            if (storedReminderTime) setReminderTime(new Date(storedReminderTime));
+            if (storedReminderTime) {
+                setReminderTime(new Date(storedReminderTime));
+            } else {
+                // Set default reminder time to 9 AM
+                const defaultTime = new Date();
+                defaultTime.setHours(9, 0, 0, 0);
+                await AsyncStorage.setItem(REMINDER_TIME_KEY, defaultTime.toISOString());
+                setReminderTime(defaultTime);
+            }
         })();
     }, []);
 
     const scheduleReminderNotification = async (time) => {
-        // Cancel existing scheduled notification
         const existingId = await AsyncStorage.getItem(NOTIFICATION_ID_KEY);
         if (existingId) {
             try { await Notifications.cancelScheduledNotificationAsync(existingId); } catch {}
         }
 
-        // Calculate seconds until next occurrence
         const now = Date.now();
         const nextTrigger = new Date();
         nextTrigger.setHours(time.getHours(), time.getMinutes(), 0, 0);
         let seconds = Math.floor((nextTrigger.getTime() - now) / 1000);
-        // If time is past, schedule for next day
         if (seconds <= 0) {
             seconds += 24 * 60 * 60;
         }
 
-        // Schedule with repeating interval
         const identifier = await Notifications.scheduleNotificationAsync({
             content: {
                 title: "Schedule Your Day",
@@ -48,8 +52,7 @@ export default function SettingsPage() {
                 sound: true,
             },
             trigger: {
-                type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
-                seconds: seconds,
+                seconds,
                 repeats: true,
             },
         });
@@ -60,7 +63,6 @@ export default function SettingsPage() {
     const saveSettings = async () => {
         await AsyncStorage.setItem(TIMEZONE_KEY, timezone);
         await AsyncStorage.setItem(REMINDER_TIME_KEY, reminderTime.toISOString());
-        // Only schedules notification on save, at computed interval
         await scheduleReminderNotification(reminderTime);
         setShowTimePicker(false);
     };
