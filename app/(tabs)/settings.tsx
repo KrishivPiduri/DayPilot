@@ -52,8 +52,9 @@ export default function SettingsPage() {
                 sound: true,
             },
             trigger: {
-                seconds,
-                repeats: true,
+                type: Notifications.SchedulableTriggerInputTypes.DAILY,
+                hour: time.getHours(),
+                minute: time.getMinutes()
             },
         });
 
