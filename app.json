@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "dayPilot",
+    "name": "Day Pilot",
     "slug": "dayPilot",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -11,6 +11,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.krishivpiduri.daypilot",
+      "acsAppId": "6747405813",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       }
