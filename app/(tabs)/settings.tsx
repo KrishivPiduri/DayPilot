@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, Pressable, Platform, TextInput, StyleSheet } from 'react-native';
+import { View, Text, Pressable, Platform, TextInput, StyleSheet, Alert } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Localization from 'expo-localization';
 import * as Notifications from 'expo-notifications';
+import { resetOnboardingStatus } from '@/components/Onboarding';
 
 const TIMEZONE_KEY = 'settings_timezone';
 const REMINDER_TIME_KEY = 'settings_reminder_time';
@@ -68,6 +69,16 @@ export default function SettingsPage() {
         setShowTimePicker(false);
     };
 
+    const handleRestartTutorial = async () => {
+        const success = await resetOnboardingStatus();
+        if (success) {
+            Alert.alert(
+                "Tutorial Reset",
+                "The app tutorial will show again when you navigate to different screens."
+            );
+        }
+    };
+
     return (
         <View style={styles.container}>
             <Text style={styles.title}>Settings</Text>
@@ -103,9 +114,16 @@ export default function SettingsPage() {
                 )}
             </View>
 
+            <View style={styles.section}>
+                <Text style={styles.sectionHeader}>Help & Support</Text>
+                <Pressable style={styles.optionButton} onPress={handleRestartTutorial}>
+                    <Text style={styles.optionButtonText}>Restart App Tutorial</Text>
+                </Pressable>
+            </View>
             <Pressable style={styles.saveButton} onPress={saveSettings}>
                 <Text style={styles.saveButtonText}>Save Settings</Text>
             </Pressable>
+
         </View>
     );
 }
@@ -159,5 +177,22 @@ const styles = StyleSheet.create({
         color: '#ffffff',
         fontSize: 16,
         fontWeight: '500',
+    },
+    sectionHeader: {
+        fontSize: 18,
+        fontWeight: '600',
+        color: '#2e2e2e',
+        marginBottom: 12,
+    },
+    optionButton: {
+        paddingVertical: 10,
+        paddingHorizontal: 14,
+        backgroundColor: '#e0e0e0',
+        borderRadius: 6,
+        alignItems: 'center',
+    },
+    optionButtonText: {
+        fontSize: 16,
+        color: '#1a1a1a',
     },
 });
