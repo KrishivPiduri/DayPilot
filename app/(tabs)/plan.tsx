@@ -55,10 +55,21 @@ export default function PlanScreen() {
         loadTasks();
     }, []);
 
+    const filterExpiredTasks = (taskList: Task[]) => {
+        const todayStart = new Date();
+        todayStart.setHours(0, 0, 0, 0);
+        return taskList.filter(task => task.createdAt >= todayStart.getTime());
+    };
+
     const loadTasks = async () => {
         try {
             const json = await AsyncStorage.getItem(STORAGE_KEY);
             if (json) setTasks(JSON.parse(json).map((t) => ({...t, startTime: new Date(t.startTime), endTime: new Date(t.endTime)})));
+            if (json) {
+                const parsed = JSON.parse(stored);
+                const validTasks = filterExpiredTasks(parsed);
+                await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(validTasks));
+            }
         } catch {
             Alert.alert('Error loading tasks');
         }

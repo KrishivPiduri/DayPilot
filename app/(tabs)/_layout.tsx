@@ -47,6 +47,13 @@ export default function TabLayout() {
                 tabBarIcon: ({ color }) => <IconSymbol size={28} name="gearshape.2.fill" color={color} />,
             }}
         />
+        <Tabs.Screen
+            name="TasksForTomorrow"
+            options={{
+                title: 'Tasks',
+                tabBarIcon: ({ color }) => <IconSymbol size={28} name="checkmark.circle.fill" color={color} />,
+            }}
+        />
     </Tabs>
   );
 }
