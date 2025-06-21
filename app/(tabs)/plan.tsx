@@ -10,6 +10,21 @@ import {format, setHours, setMinutes} from 'date-fns';
 import * as Device from 'expo-device';
 import * as Notifications from 'expo-notifications';
 import Constants from 'expo-constants';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import TaskDetailScreen from '../TaskDetail';
+import {useNavigation} from "expo-router";
+
+const Stack = createNativeStackNavigator();
+
+export default function PlanScreen() {
+    return (
+        <Stack.Navigator>
+            <Stack.Screen name="PlanMain" component={PlanMainScreen} options={{ title: 'Plan' }} />
+            <Stack.Screen name="TaskDetail" component={TaskDetailScreen} options={{ title: 'Edit Task' }} />
+        </Stack.Navigator>
+    );
+}
+
 
 Notifications.setNotificationHandler({
     handleNotification: async () => ({
@@ -25,7 +40,8 @@ const STORAGE_KEY = 'PLAN_TASKS';
 const HOURS = Array.from({length: 24}, (_, i) => i);
 const TIMELINE_HEIGHT = 24 * 60;
 
-export default function PlanScreen() {
+export default function PlanMainScreen() {
+    const navigation= useNavigation();
     const [tasks, setTasks] = useState([]);
     const [title, setTitle] = useState('');
     const [startTime, setStartTime] = useState(new Date());
@@ -207,7 +223,19 @@ export default function PlanScreen() {
                                         position: 'absolute'
                                     }
                                 ]}
-                                onPress={() => openEditModal(task)}
+                                onPress={() => {
+                                    navigation.navigate('TaskDetail', {
+                                        task,
+                                        onSave: updatedTask => {
+                                            const updatedTasks = tasks.map(t => t.id === updatedTask.id ? updatedTask : t);
+                                            saveTasks(updatedTasks);
+                                        },
+                                        onDelete: taskId => {
+                                            const filtered = tasks.filter(t => t.id !== taskId);
+                                            saveTasks(filtered);
+                                        }
+                                    });
+                                }}
                                 activeOpacity={0.7}
                             >
                                 <Text style={styles.taskText} numberOfLines={1}>{task.title}</Text>
@@ -247,7 +275,8 @@ export default function PlanScreen() {
                 </View>
 
                 {editingTaskId === null ? (
-                    <TouchableOpacity style={styles.addButton} onPress={handleAddTask}>
+                    <TouchableOpacity style={styles.addButton} onPress={handleAddTask}
+                    >
                         <Text style={styles.addButtonText}>Add Task</Text>
                     </TouchableOpacity>
                 ) : (
