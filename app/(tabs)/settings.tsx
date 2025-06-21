@@ -38,14 +38,6 @@ export default function SettingsPage() {
             try { await Notifications.cancelScheduledNotificationAsync(existingId); } catch {}
         }
 
-        const now = Date.now();
-        const nextTrigger = new Date();
-        nextTrigger.setHours(time.getHours(), time.getMinutes(), 0, 0);
-        let seconds = Math.floor((nextTrigger.getTime() - now) / 1000);
-        if (seconds <= 0) {
-            seconds += 24 * 60 * 60;
-        }
-
         const identifier = await Notifications.scheduleNotificationAsync({
             content: {
                 title: "Schedule Your Day",
