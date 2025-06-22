@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, Button, StyleSheet, Switch, Alert } from 'react-native';
+import {View, Text, TextInput, Button, StyleSheet, Switch, Alert, Platform, Modal, TouchableOpacity} from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { format } from 'date-fns';
 import { useNavigation, useRoute } from '@react-navigation/native';
@@ -13,8 +13,29 @@ export default function TaskDetailScreen() {
     const [startTime, setStartTime] = useState(new Date(task.startTime));
     const [endTime, setEndTime] = useState(new Date(task.endTime));
     const [important, setImportant] = useState(task.important);
-    const [showStart, setShowStart] = useState(false);
-    const [showEnd, setShowEnd] = useState(false);
+    const [showStartPicker, setShowStartPicker] = useState(false);
+    const [showEndPicker, setShowEndPicker] = useState(false);
+
+    const renderTimePickerModal = (visible, onClose, date, onChange) => {
+        if (Platform.OS !== 'ios') return null;
+        return (
+            <Modal transparent visible={visible} animationType="slide">
+                <View style={styles.modalBackdrop}>
+                    <View style={styles.modalContent}>
+                        <DateTimePicker
+                            mode="time"
+                            display="spinner"
+                            value={date}
+                            themeVariant="light"
+                            onChange={(_, d) => d && onChange(d)}
+                            style={styles.picker}
+                        />
+                        <Button title="Done" onPress={onClose} />
+                    </View>
+                </View>
+            </Modal>
+        );
+    };
 
     const saveChanges = () => {
         if (!title.trim()) return Alert.alert('Missing title');
@@ -43,30 +64,12 @@ export default function TaskDetailScreen() {
             <TextInput style={styles.input} value={title} onChangeText={setTitle} placeholder="Task Title" />
 
             <Text style={styles.label}>Start Time</Text>
-            <Button title={format(startTime, 'hh:mm a')} onPress={() => setShowStart(true)} />
-            {showStart && (
-                <DateTimePicker
-                    mode="time"
-                    value={startTime}
-                    onChange={(_, date) => {
-                        setShowStart(false);
-                        if (date) setStartTime(date);
-                    }}
-                />
-            )}
+            <Button title={format(startTime, 'hh:mm a')} onPress={() => setShowStartPicker(true)} />
+            {renderTimePickerModal(showStartPicker, () => setShowStartPicker(false), startTime, setStartTime)}
 
             <Text style={styles.label}>End Time</Text>
-            <Button title={format(endTime, 'hh:mm a')} onPress={() => setShowEnd(true)} />
-            {showEnd && (
-                <DateTimePicker
-                    mode="time"
-                    value={endTime}
-                    onChange={(_, date) => {
-                        setShowEnd(false);
-                        if (date) setEndTime(date);
-                    }}
-                />
-            )}
+            <Button title={format(endTime, 'hh:mm a')} onPress={() => setShowEndPicker(true)} />
+            {renderTimePickerModal(showEndPicker, () => setShowEndPicker(false), endTime, setEndTime)}
 
             <View style={styles.row}>
                 <Text>Important</Text>
@@ -74,18 +77,29 @@ export default function TaskDetailScreen() {
             </View>
 
             <View style={styles.buttonRow}>
-                <Button title="Save" onPress={saveChanges} />
-                <Button title="Delete" onPress={deleteTask} color="red" />
+                <TouchableOpacity onPress={saveChanges} style={[styles.button, styles.save]}>
+                    <Text style={styles.buttonText}>Save</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={deleteTask} style={[styles.button, styles.delete]}>
+                    <Text style={styles.buttonText}>Delete</Text>
+                </TouchableOpacity>
             </View>
         </View>
     );
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, padding: 20 },
+    // Button container styles
+    button: { flex: 1, padding: 12, alignItems: 'center', borderRadius: 4, marginHorizontal: 5 },
+    save: { backgroundColor: 'blue' },
+    delete: { backgroundColor: 'red' },
+    buttonText: { color: 'white', fontWeight: 'bold' },
+    container: { flex: 1, padding: 20, backgroundColor: "white" },
     heading: { fontSize: 24, fontWeight: 'bold', marginBottom: 20 },
     input: { borderBottomWidth: 1, marginBottom: 20, paddingVertical: 8 },
     label: { fontSize: 16, marginTop: 12 },
     row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginVertical: 20 },
-    buttonRow: { flexDirection: 'row', justifyContent: 'space-around', marginTop: 30 }
+    buttonRow: { flexDirection: 'row', justifyContent: 'space-around', marginTop: 30 },
+    modalBackdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.3)' },
+    modalContent: { backgroundColor: '#fff', padding: 20 }
 });
