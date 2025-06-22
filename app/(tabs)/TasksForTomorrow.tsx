@@ -111,7 +111,7 @@ export default function TasksForTomorrow() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        padding: 20,
+        padding: 50,
         backgroundColor: '#fff',
     },
     heading: {
