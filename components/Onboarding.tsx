@@ -41,21 +41,21 @@ const onboardingSteps: OnboardingStep[] = [
     id: 'current-task',
     title: 'The Plan Tab',
     text: 'You can go to this tab to start planning your day.',
-    position: { top: '93%', left: '35%', width: '30%', height: '7%' },
+    position: { top: '93%', left: '32%', width: '15%', height: '7%' },
     screen: 'plan',
   },
   {
     id: 'plan-tab',
     title: 'Create Your Tasks',
-    text: 'This is where you create new tasks.',
-    position: { top: '0%', left: '0%', width: '100%', height:'55%' },
+    text: 'Tap anywhere on the calendar to create a new task. It will be scheduled for the time you tapped.',
+    position: { top: '0%', left: '0%', width: '100%', height:'90%' },
     screen: 'plan',
   },
   {
     id: 'add-task',
-    title: 'Calendar',
-    text: 'Once you create a task, it will appear in the calendar view. You can see your day at a glance here.',
-    position: { top: '50%', left: '0%', width: '100%', height:'100%' },
+    title: 'Edit and Delete Tasks',
+    text: 'Click the task in the calendar view to add or edit it.',
+    position: { top: '0%', left: '0%', width: '100%', height:'100%' },
     screen: 'plan',
   },
   {
@@ -72,6 +72,13 @@ const onboardingSteps: OnboardingStep[] = [
     position: { top: '18%', left: '2%', width: '95%', height: "12%" },
     screen: 'settings',
   },
+  {
+    id: "TasksForTomorrow",
+    title: 'Tasks for Tomorrow',
+    text: "This is your 'Tomorrow's Tasks' tab. Add tasks here so you don’t forget to schedule them on tomorrow’s calendar.",
+    position: { top: '0%', left: '0%', width: '100%', height: '100%' },
+    screen: 'TasksForTomorrow',
+  }
 ];
 
 export default function Onboarding() {
