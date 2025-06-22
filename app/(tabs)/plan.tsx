@@ -25,13 +25,25 @@ import Animated, {
     useAnimatedGestureHandler,
 } from 'react-native-reanimated';
 import { useNavigation } from '@react-navigation/native';
+import TaskEditorScreen from '../EditItem';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
+const Stack = createNativeStackNavigator();
+
+export default function PlanMainScreen() {
+    return (
+        <Stack.Navigator screenOptions={{headerShown: false}}>
+            <Stack.Screen name="PlanMain" component={PlanScreen}/>
+            <Stack.Screen name="TaskEditor" component={TaskEditorScreen}/>
+        </Stack.Navigator>
+    )
+}
 
 const STORAGE_KEY = 'PLAN_TASKS';
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
 const HOUR_HEIGHT = 60;
 const SNAP_MIN = 15;
 
-export default function PlanMainScreen() {
+function PlanScreen() {
     const navigation = useNavigation();
     const [tasks, setTasks] = useState([]);
     const [modalVisible, setModalVisible] = useState(false);
@@ -75,21 +87,31 @@ export default function PlanMainScreen() {
         await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(toStore));
     };
 
-    const openNewModal = time => {
-        setEditingTask(null);
-        setInputTitle('');
-        setInputStart(time);
-        setInputEnd(addMinutes(time, 30));
-        setModalVisible(true);
+    const openEditModal = task => {
+        navigation.navigate('TaskEditor', {
+            task,
+            onSave: updatedTask => {
+                const updated = tasks.map(t => t.id === updatedTask.id ? updatedTask : t);
+                saveTasks(updated);
+            },
+            onDelete: toDelete => {
+                saveTasks(tasks.filter(t => t.id !== toDelete.id));
+            }
+        });
     };
 
-    const openEditModal = task => {
-        setEditingTask(task);
-        setInputTitle(task.title);
-        setInputStart(task.start);
-        setInputEnd(task.end);
-        setModalVisible(true);
+    const openNewModal = time => {
+        navigation.navigate('TaskEditor', {
+            onSave: newTask => {
+                saveTasks([...tasks, newTask]);
+            },
+            task: {
+                start: time,
+                end: addMinutes(time, 30),
+            }
+        });
     };
+
 
     const handleSave = () => {
         if (!inputTitle.trim()) return Alert.alert('Enter title');
@@ -256,7 +278,7 @@ function DraggableEvent({ task, onUpdate, onTap }) {
 }
 
 const styles = StyleSheet.create({
-    container: { paddingBottom: 100, backgroundColor: "white" },
+    container: { paddingBottom: 100, backgroundColor: "white", paddingTop: 40 },
     save: { backgroundColor: '#007bff', padding: 12, borderRadius: 4, marginRight: 16 },
     cancel: { backgroundColor: 'gray', padding: 12, borderRadius: 4 },
     cancelText: { color: '#fff', fontWeight: '600' },
@@ -276,3 +298,7 @@ const styles = StyleSheet.create({
     eventTitle: { color: '#fff', fontWeight: '600' },
     eventTime: { color: '#e0e0e0', fontSize: 10 },
 });
+
+
+
+
