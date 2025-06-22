@@ -1,424 +1,278 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
-    View, Text, TextInput, Button, ScrollView, StyleSheet,
-    Switch, Pressable, Alert, Platform, Modal, TouchableOpacity,
-    GestureResponderEvent
+    View,
+    Text,
+    ScrollView,
+    StyleSheet,
+    Modal,
+    TouchableOpacity,
+    Alert,
+    Pressable,
+    TextInput,
 } from 'react-native';
+import { format, setHours, setMinutes, addMinutes } from 'date-fns';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import {format, setHours, setMinutes} from 'date-fns';
-import * as Device from 'expo-device';
-import * as Notifications from 'expo-notifications';
-import Constants from 'expo-constants';
-import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import TaskDetailScreen from '../TaskDetail';
-import {useNavigation} from "expo-router";
-
-const Stack = createNativeStackNavigator();
-
-export default function PlanScreen() {
-    return (
-        <Stack.Navigator>
-            <Stack.Screen name="PlanMain" component={PlanMainScreen} options={{ title: 'Plan' }} />
-            <Stack.Screen name="TaskDetail" component={TaskDetailScreen} options={{ title: 'Edit Task' }} />
-        </Stack.Navigator>
-    );
-}
-
-
-Notifications.setNotificationHandler({
-    handleNotification: async () => ({
-        shouldPlaySound: false,
-        shouldSetBadge: false,
-        shouldShowBanner: true,
-        shouldShowList: true,
-    }),
-});
+import {
+    PanGestureHandler,
+    GestureHandlerRootView,
+} from 'react-native-gesture-handler';
+import Animated, {
+    useSharedValue,
+    useAnimatedStyle,
+    withSpring,
+    runOnJS,
+    useAnimatedGestureHandler,
+} from 'react-native-reanimated';
+import { useNavigation } from '@react-navigation/native';
 
 const STORAGE_KEY = 'PLAN_TASKS';
-
-const HOURS = Array.from({length: 24}, (_, i) => i);
-const TIMELINE_HEIGHT = 24 * 60;
+const HOURS = Array.from({ length: 24 }, (_, i) => i);
+const HOUR_HEIGHT = 60;
+const SNAP_MIN = 15;
 
 export default function PlanMainScreen() {
-    const navigation= useNavigation();
+    const navigation = useNavigation();
     const [tasks, setTasks] = useState([]);
-    const [title, setTitle] = useState('');
-    const [startTime, setStartTime] = useState(new Date());
-    const [endTime, setEndTime] = useState(new Date());
-    const [important, setImportant] = useState(false);
-    const [showStartPicker, setShowStartPicker] = useState(false);
-    const [showEndPicker, setShowEndPicker] = useState(false);
-    const [editingTaskId, setEditingTaskId] = useState(null);
+    const [modalVisible, setModalVisible] = useState(false);
+    const [editingTask, setEditingTask] = useState(null);
+    const [inputTitle, setInputTitle] = useState('');
+    const [inputStart, setInputStart] = useState(new Date());
+    const [inputEnd, setInputEnd] = useState(addMinutes(new Date(), 30));
 
-    useEffect(() => {
-
-        const notificationListener = Notifications.addNotificationReceivedListener(notification => {
-            console.log('Notification received:', notification);
-        });
-
-        const responseListener = Notifications.addNotificationResponseReceivedListener(response => {
-            console.log('Notification response:', response);
-        });
-
-        return () => {
-            notificationListener.remove();
-            responseListener.remove();
-        };
-    }, []);
-
-    useEffect(() => {
-        loadTasks();
-    }, []);
-
-    const filterExpiredTasks = (taskList: Task[]) => {
-        const todayStart = new Date();
-        todayStart.setHours(0, 0, 0, 0);
-        return taskList.filter(task => task.createdAt >= todayStart.getTime());
-    };
+    useEffect(() => { loadTasks(); }, []);
 
     const loadTasks = async () => {
         try {
             const json = await AsyncStorage.getItem(STORAGE_KEY);
-            if (json) setTasks(JSON.parse(json).map((t) => ({...t, startTime: new Date(t.startTime), endTime: new Date(t.endTime)})));
             if (json) {
                 const parsed = JSON.parse(json);
-                const validTasks = filterExpiredTasks(parsed);
-                await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(validTasks));
+                const normalized = parsed.map(t => {
+                    const startVal = t.start ?? t.startTime;
+                    const endVal = t.end ?? t.endTime;
+                    return {
+                        id: t.id,
+                        title: t.title,
+                        start: new Date(startVal),
+                        end: new Date(endVal),
+                    };
+                });
+                setTasks(normalized);
             }
         } catch {
             Alert.alert('Error loading tasks');
         }
     };
 
-    const saveTasks = async (newTasks) => {
-        try {
-            await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(newTasks));
-            setTasks(newTasks);
-        } catch {
-            Alert.alert('Error saving tasks');
+    const saveTasks = async newTasks => {
+        setTasks(newTasks);
+        const toStore = newTasks.map(t => ({
+            id: t.id,
+            title: t.title,
+            start: t.start.getTime(),
+            end: t.end.getTime(),
+        }));
+        await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(toStore));
+    };
+
+    const openNewModal = time => {
+        setEditingTask(null);
+        setInputTitle('');
+        setInputStart(time);
+        setInputEnd(addMinutes(time, 30));
+        setModalVisible(true);
+    };
+
+    const openEditModal = task => {
+        setEditingTask(task);
+        setInputTitle(task.title);
+        setInputStart(task.start);
+        setInputEnd(task.end);
+        setModalVisible(true);
+    };
+
+    const handleSave = () => {
+        if (!inputTitle.trim()) return Alert.alert('Enter title');
+        if (inputEnd <= inputStart) return Alert.alert('End must be after start');
+        if (editingTask) {
+            const updated = tasks.map(t =>
+                t.id === editingTask.id
+                    ? { ...t, title: inputTitle, start: inputStart, end: inputEnd }
+                    : t
+            );
+            saveTasks(updated);
+        } else {
+            const newTask = {
+                id: Date.now().toString(),
+                title: inputTitle,
+                start: inputStart,
+                end: inputEnd,
+            };
+            saveTasks([...tasks, newTask]);
         }
-    };
-
-    const handleAddTask = () => {
-        if (!title.trim()) return Alert.alert('Missing title', 'Please enter a task title.');
-        if (endTime <= startTime) return Alert.alert('Invalid time', 'End time must be after start time.');
-
-        const newTask = {id: Date.now().toString(), title: title.trim(), startTime, endTime, important};
-        const newTasks = [...tasks, newTask];
-        saveTasks(newTasks);
-        schedulePushNotification(newTask.title, startTime);
-        setTitle('');
-        setStartTime(new Date());
-        setEndTime(new Date());
-        setImportant(false);
-    };
-
-    const openEditModal = (task) => {
-        setEditingTaskId(task.id);
-        setTitle(task.title);
-        setStartTime(task.startTime);
-        setEndTime(task.endTime);
-        setImportant(task.important);
-    };
-
-    const handleSaveEdit = () => {
-        if (!title.trim()) return Alert.alert('Missing title', 'Please enter a task title.');
-        if (endTime <= startTime) return Alert.alert('Invalid time', 'End time must be after start time.');
-        if (!editingTaskId) return;
-
-        const updatedTasks = tasks.map(t =>
-            t.id === editingTaskId ? {...t, title: title.trim(), startTime, endTime, important} : t
-        );
-        saveTasks(updatedTasks);
-        setEditingTaskId(null);
-        setTitle('');
-        setStartTime(new Date());
-        setEndTime(new Date());
-        setImportant(false);
+        setModalVisible(false);
     };
 
     const handleDelete = () => {
-        if (!editingTaskId) return;
-        Alert.alert('Delete Task', 'Are you sure?', [
-            {text: 'Cancel', style: 'cancel'},
-            {
-                text: 'Delete', style: 'destructive', onPress: () => {
-                    const filtered = tasks.filter(t => t.id !== editingTaskId);
-                    saveTasks(filtered);
-                    setEditingTaskId(null);
-                    setTitle('');
-                    setStartTime(new Date());
-                    setEndTime(new Date());
-                    setImportant(false);
-                }
-            }
+        if (!editingTask) return;
+        Alert.alert('Delete?', 'Are you sure?', [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Delete', style: 'destructive', onPress: () => {
+                    saveTasks(tasks.filter(t => t.id !== editingTask.id));
+                    setModalVisible(false);
+                }}
         ]);
     };
 
-    const renderTimePickerModal = (visible, onClose, date, onChange) => {
-        if (Platform.OS !== 'ios') return null;
-        return (
-            <Modal transparent visible={visible} animationType="slide">
+    const onGridPress = event => {
+        const y = event.nativeEvent.locationY;
+        const hour = Math.min(Math.max(Math.floor(y / HOUR_HEIGHT), 0), 23);
+        const minute = Math.round(((y % HOUR_HEIGHT) / HOUR_HEIGHT) * 60 / SNAP_MIN) * SNAP_MIN;
+        const time = setMinutes(setHours(new Date(), hour), minute);
+        openNewModal(time);
+    };
+
+    return (
+        <GestureHandlerRootView style={{ flex: 1 }}>
+            <ScrollView contentContainerStyle={styles.container}>
+                <Text style={styles.heading}>Your Schedule</Text>
+                <Pressable style={styles.grid} onPress={onGridPress}>
+                    {HOURS.map(hour => (
+                        <View key={hour} style={[styles.hourRow, { top: hour * HOUR_HEIGHT }]}>
+                            <Text style={styles.hourLabel}>{format(setHours(new Date(), hour), 'ha')}</Text>
+                            <View style={styles.line} />
+                        </View>
+                    ))}
+                    {tasks.map(task => (
+                        <DraggableEvent
+                            key={task.id}
+                            task={task}
+                            onUpdate={updated => saveTasks(tasks.map(t => t.id === updated.id ? updated : t))}
+                            onTap={() => openEditModal(task)}
+                        />
+                    ))}
+                </Pressable>
+            </ScrollView>
+
+            <Modal visible={modalVisible} transparent animationType="slide">
                 <View style={styles.modalBackdrop}>
                     <View style={styles.modalContent}>
+                        <Text style={styles.modalHeading}>{editingTask ? 'Edit Event' : 'New Event'}</Text>
+                        <Text>Title</Text>
+                        <TextInput
+                            style={styles.input}
+                            value={inputTitle}
+                            onChangeText={setInputTitle}
+                            placeholder="Event Title"
+                        />
+                        <Text>Start</Text>
                         <DateTimePicker
                             mode="time"
                             display="spinner"
-                            value={date}
                             themeVariant="light"
-                            onChange={(_, d) => d && onChange(d)}
-                            style={styles.picker}
+                            value={inputStart}
+                            onChange={(_, d) => d && setInputStart(d)}
                         />
-                        <Button title="Done" onPress={onClose} />
+                        <Text>End</Text>
+                        <DateTimePicker
+                            mode="time"
+                            display="spinner"
+                            themeVariant="light"
+                            value={inputEnd}
+                            onChange={(_, d) => d && setInputEnd(d)}
+                        />
+                        <View style={styles.modalButtons}>
+                            {editingTask && (
+                                <TouchableOpacity onPress={handleDelete} style={styles.delete}>
+                                    <Text style={styles.deleteText}>Delete</Text>
+                                </TouchableOpacity>
+                            )}
+                            <TouchableOpacity onPress={handleSave} style={styles.save}>
+                                <Text style={styles.saveText}>Save</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity onPress={() => setModalVisible(false)} style={styles.cancel}>
+                                <Text style={styles.cancelText}>Cancel</Text>
+                            </TouchableOpacity>
+                        </View>
                     </View>
                 </View>
             </Modal>
-        );
-    };
-
-    const minutesFromMidnight = (date) => date.getHours() * 60 + date.getMinutes();
-
-    const renderScheduleView = () => (
-        <ScrollView style={styles.scheduleContainer} contentContainerStyle={{ paddingBottom: 100 }}>
-            <View style={styles.timelineContainer}>
-                <View style={styles.hourLabels}>
-                    {HOURS.map(hour => (
-                        <Text key={hour} style={styles.hourLabel}>
-                            {format(setMinutes(setHours(new Date(), hour), 0), 'ha')}
-                        </Text>
-                    ))}
-                </View>
-
-                <View style={styles.timeline}>
-                    {HOURS.map(hour => (
-                        <View key={`line-${hour}`} style={[styles.hourLine, { top: hour * 60 }]} />
-                    ))}
-
-                    {tasks.map(task => {
-                        const startMins = minutesFromMidnight(task.startTime);
-                        const endMins = minutesFromMidnight(task.endTime);
-                        const top = startMins;
-                        const height = Math.max(endMins - startMins, 15);
-
-                        const overlapping = tasks.filter(t => {
-                            const s = minutesFromMidnight(t.startTime);
-                            const e = minutesFromMidnight(t.endTime);
-                            return (s < endMins && e > startMins);
-                        });
-                        const idx = overlapping.findIndex(t => t.id === task.id);
-                        const width = 100 / overlapping.length;
-
-                        return (
-                            <TouchableOpacity
-                                key={task.id}
-                                style={[
-                                    styles.taskBlock,
-                                    task.important && styles.taskImportant,
-                                    {
-                                        top,
-                                        height,
-                                        width: `${width}%`,
-                                        left: `${width * idx}%`,
-                                        position: 'absolute'
-                                    }
-                                ]}
-                                onPress={() => {
-                                    navigation.navigate('TaskDetail', {
-                                        task,
-                                        onSave: updatedTask => {
-                                            const updatedTasks = tasks.map(t => t.id === updatedTask.id ? updatedTask : t);
-                                            saveTasks(updatedTasks);
-                                        },
-                                        onDelete: taskId => {
-                                            const filtered = tasks.filter(t => t.id !== taskId);
-                                            saveTasks(filtered);
-                                        }
-                                    });
-                                }}
-                                activeOpacity={0.7}
-                            >
-                                <Text style={styles.taskText} numberOfLines={1}>{task.title}</Text>
-                                <Text style={styles.taskTime}>
-                                    {format(task.startTime, 'hh:mm a')} - {format(task.endTime, 'hh:mm a')}
-                                </Text>
-                            </TouchableOpacity>
-                        );
-                    })}
-                </View>
-            </View>
-        </ScrollView>
-    );
-
-    return (
-        <ScrollView style={styles.container} keyboardShouldPersistTaps="handled">
-            <ScrollView contentContainerStyle={styles.formContent} keyboardShouldPersistTaps="handled">
-                <Text style={styles.heading}>Add Task</Text>
-                <Text style={styles.label}>Title</Text>
-                <TextInput style={styles.input} placeholder="Task Title" value={title} onChangeText={setTitle} />
-
-                <Text style={styles.label}>Start Time</Text>
-                <Pressable onPress={() => setShowStartPicker(true)} style={styles.timeBox}>
-                    <Text>{format(startTime, 'hh:mm a')}</Text>
-                </Pressable>
-                {renderTimePickerModal(showStartPicker, () => setShowStartPicker(false), startTime, setStartTime)}
-
-                <Text style={styles.label}>End Time</Text>
-                <Pressable onPress={() => setShowEndPicker(true)} style={styles.timeBox}>
-                    <Text>{format(endTime, 'hh:mm a')}</Text>
-                </Pressable>
-                {renderTimePickerModal(showEndPicker, () => setShowEndPicker(false), endTime, setEndTime)}
-
-                <View style={styles.row}>
-                    <Text style={styles.label}>Important</Text>
-                    <Switch value={important} onValueChange={setImportant} />
-                </View>
-
-                {editingTaskId === null ? (
-                    <TouchableOpacity style={styles.addButton} onPress={handleAddTask}
-                    >
-                        <Text style={styles.addButtonText}>Add Task</Text>
-                    </TouchableOpacity>
-                ) : (
-                    <View style={styles.editButtonsRow}>
-                        <TouchableOpacity style={[styles.addButton, { backgroundColor: '#28a745' }]} onPress={handleSaveEdit}>
-                            <Text style={styles.addButtonText}>Save</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity style={[styles.addButton, { backgroundColor: '#dc3545', marginLeft: 12 }]} onPress={handleDelete}>
-                            <Text style={styles.addButtonText}>Delete</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity style={[styles.addButton, { backgroundColor: '#6c757d', marginLeft: 12 }]} onPress={() => setEditingTaskId(null)}>
-                            <Text style={styles.addButtonText}>Cancel</Text>
-                        </TouchableOpacity>
-                    </View>
-                )}
-
-                <Text style={[styles.heading, { marginTop: 32 }]}>Your Schedule</Text>
-            </ScrollView>
-            {renderScheduleView()}
-        </ScrollView>
+        </GestureHandlerRootView>
     );
 }
 
-async function schedulePushNotification(title, taskStartTime) {
-    const fiveMinutesBefore = Math.floor((new Date(taskStartTime).getTime() - Date.now()) / 60000) - 5;
-    console.log("Time",fiveMinutesBefore.toString())
-    console.log("Start time", taskStartTime);
-    await Notifications.scheduleNotificationAsync({
-        content: {
-            title: `Reminder: ${title}`,
-            body: 'Your task starts in 5 minutes.',
+function DraggableEvent({ task, onUpdate, onTap }) {
+    const { title, start, end } = task;
+    if (isNaN(start) || isNaN(end)) return null;
+    const durationMins = (end - start) / 60000;
+    const topStart = (start.getHours() * 60 + start.getMinutes()) * (HOUR_HEIGHT / 60);
+
+    const translateY = useSharedValue(topStart);
+    const height = useSharedValue(durationMins * (HOUR_HEIGHT / 60));
+
+    const animatedStyle = useAnimatedStyle(() => ({
+        position: 'absolute',
+        top: translateY.value,
+        height: height.value,
+        left: 60,
+        right: 10,
+        backgroundColor: '#4287f5',
+        borderRadius: 6,
+        padding: 4,
+    }));
+
+    const updateTaskTime = useCallback(
+        newStartMins => {
+            const hours = Math.floor(newStartMins / 60);
+            const mins = newStartMins % 60;
+            const newStart = setMinutes(setHours(new Date(), hours), mins);
+            const newEnd = addMinutes(newStart, durationMins);
+            onUpdate({ ...task, start: newStart, end: newEnd });
         },
-        trigger: {
-            type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
-            seconds: fiveMinutesBefore*60
+        [task, durationMins, onUpdate]
+    );
+
+    const panHandler = useAnimatedGestureHandler({
+        onStart: (_, ctx) => { ctx.startY = translateY.value; },
+        onActive: (evt, ctx) => { translateY.value = ctx.startY + evt.translationY; },
+        onEnd: () => {
+            const totalMins = translateY.value / (HOUR_HEIGHT / 60);
+            const snapped = Math.round(totalMins / SNAP_MIN) * SNAP_MIN;
+            const snappedY = snapped * (HOUR_HEIGHT / 60);
+            translateY.value = withSpring(snappedY);
+            runOnJS(updateTaskTime)(snapped);
+            runOnJS(onTap)();
         },
     });
-}
 
-async function registerForPushNotificationsAsync() {
-    let token;
-
-    if (Platform.OS === 'android') {
-        await Notifications.setNotificationChannelAsync('default', {
-            name: 'default',
-            importance: Notifications.AndroidImportance.MAX,
-            vibrationPattern: [0, 250, 250, 250],
-            lightColor: '#FF231F7C',
-        });
-    }
-
-    if (Device.isDevice) {
-        const { status: existingStatus } = await Notifications.getPermissionsAsync();
-        let finalStatus = existingStatus;
-        if (existingStatus !== 'granted') {
-            const { status } = await Notifications.requestPermissionsAsync();
-            finalStatus = status;
-        }
-        if (finalStatus !== 'granted') {
-            alert('Failed to get push token for push notification!');
-            return;
-        }
-        try {
-            const projectId = Constants?.expoConfig?.extra?.eas?.projectId || Constants?.easConfig?.projectId;
-            if (!projectId) throw new Error('Project ID not found');
-            token = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
-            console.log(token);
-        } catch (e) {
-            token = `${e}`;
-        }
-    } else {
-        alert('Must use physical device for Push Notifications');
-    }
-
-    return token;
+    return (
+        <PanGestureHandler onGestureEvent={panHandler}>
+            <Animated.View style={animatedStyle}>
+                <Text style={styles.eventTitle} numberOfLines={1}>{title}</Text>
+                <Text style={styles.eventTime}>{format(start, 'hh:mm a')} - {format(end, 'hh:mm a')}</Text>
+            </Animated.View>
+        </PanGestureHandler>
+    );
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#fff', paddingTop: 48, paddingBottom: 32, paddingHorizontal: 16 },
-    heading: { fontSize: 20, fontWeight: '500', marginBottom: 16, color: '#111' },
-    label: { fontSize: 14, marginBottom: 6, color: '#333' },
-    input: { borderBottomWidth: 1, borderColor: '#ccc', paddingVertical: 8, marginBottom: 16, fontSize: 16 },
-    timeBox: { borderBottomWidth: 1, borderColor: '#ccc', paddingVertical: 12, marginBottom: 16 },
-    row: { flexDirection: 'row', alignItems: 'center', marginBottom: 16, justifyContent: 'space-between' },
-    scheduleContainer: { flex: 1, marginTop: 8 },
-    formContent: { paddingBottom: 24 },
-
-    timelineContainer: {
-        flexDirection: 'row',
-        position: 'relative',
-        height: TIMELINE_HEIGHT,
-        marginTop: 16,
-    },
-    hourLabels: {
-        width: 50,
-        borderRightWidth: 1,
-        borderColor: '#ccc',
-        alignItems: 'flex-end',
-        paddingRight: 8,
-    },
-    hourLabel: {
-        height: 60,
-        fontSize: 12,
-        color: '#666',
-        textAlign: 'right',
-        paddingTop: 2,
-    },
-    timeline: {
-        flex: 1,
-        position: 'relative',
-        borderLeftWidth: 1,
-        borderColor: '#ccc',
-    },
-    hourLine: {
-        position: 'absolute',
-        left: 0,
-        right: 0,
-        height: 1,
-        backgroundColor: '#ddd',
-    },
-    taskBlock: {
-        position: 'absolute',
-        backgroundColor: '#222',
-        borderRadius: 6,
-        padding: 8,
-        zIndex: 1,
-    },
-    taskImportant: { backgroundColor: '#e63946' },
-    taskText: { color: '#fff', fontWeight: '500', fontSize: 14 },
-    taskTime: { color: '#ddd', fontSize: 12, marginTop: 2 },
-
-    modalBackdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.3)' },
-    modalContent: { backgroundColor: '#fff', padding: 20 },
-
-    addButton: {
-        backgroundColor: '#007bff',
-        paddingVertical: 14,
-        borderRadius: 8,
-        alignItems: 'center',
-        marginTop: 8,
-        paddingHorizontal: 16,
-    },
-    addButtonText: { color: 'white', fontWeight: '600', fontSize: 16 },
-    editButtonsRow: { flexDirection: 'row', justifyContent: 'flex-start', marginTop: 8 },
+    container: { paddingBottom: 100, backgroundColor: "white" },
+    save: { backgroundColor: '#007bff', padding: 12, borderRadius: 4, marginRight: 16 },
+    cancel: { backgroundColor: 'gray', padding: 12, borderRadius: 4 },
+    cancelText: { color: '#fff', fontWeight: '600' },
+    saveText: { color: '#fff', fontWeight: '600' },
+    heading: { fontSize: 20, fontWeight: '600', margin: 16 },
+    grid: { flex: 1, height: HOURS.length * HOUR_HEIGHT },
+    hourRow: { position: 'absolute', left: 0, right: 0, height: HOUR_HEIGHT, flexDirection: 'row', alignItems: 'center' },
+    hourLabel: { width: 50, textAlign: 'center', fontSize: 12, color: '#555' },
+    line: { flex: 1, height: 1, backgroundColor: '#ddd' },
+    modalBackdrop: { flex: 1, justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.3)' },
+    modalContent: { backgroundColor: '#fff', margin: 20, padding: 20, borderRadius: 8 },
+    modalHeading: { fontSize: 18, fontWeight: '600', marginBottom: 12 },
+    input: { borderBottomWidth: 1, borderColor: '#ccc', marginBottom: 16, padding: 8 },
+    modalButtons: { flexDirection: 'row', justifyContent: 'flex-end' },
+    deleteText: { color: 'white', fontWeight: '600', marginRight: 12 },
+    delete: { padding: 12, borderRadius: 4, backgroundColor: 'red', marginRight: 16 },
+    eventTitle: { color: '#fff', fontWeight: '600' },
+    eventTime: { color: '#e0e0e0', fontSize: 10 },
 });
