@@ -30,6 +30,7 @@ export default function SettingsPage() {
     const [reminderTime, setReminderTime] = useState(new Date());
     const [showTimePicker, setShowTimePicker] = useState(false);
     const [notificationsEnabled, setNotificationsEnabled] = useState(true);
+    const [isSaving, setIsSaving] = useState(false);
 
     useEffect(() => {
         (async () => {
@@ -76,21 +77,27 @@ export default function SettingsPage() {
     };
 
     const saveSettings = async () => {
-        await AsyncStorage.setItem(TIMEZONE_KEY, timezone);
-        await AsyncStorage.setItem(REMINDER_TIME_KEY, reminderTime.toISOString());
-        await AsyncStorage.setItem(NOTIFICATIONS_ENABLED_KEY, notificationsEnabled.toString());
+        setIsSaving(true);
+        try {
+            await AsyncStorage.setItem(TIMEZONE_KEY, timezone);
+            await AsyncStorage.setItem(REMINDER_TIME_KEY, reminderTime.toISOString());
+            await AsyncStorage.setItem(NOTIFICATIONS_ENABLED_KEY, notificationsEnabled.toString());
 
-        if (notificationsEnabled) {
-            await scheduleReminderNotification(reminderTime);
-        } else {
-            const existingId = await AsyncStorage.getItem(NOTIFICATION_ID_KEY);
-            if (existingId) {
-                try { await Notifications.cancelScheduledNotificationAsync(existingId); } catch {}
-                await AsyncStorage.removeItem(NOTIFICATION_ID_KEY);
+            if (notificationsEnabled) {
+                await scheduleReminderNotification(reminderTime);
+            } else {
+                const existingId = await AsyncStorage.getItem(NOTIFICATION_ID_KEY);
+                if (existingId) {
+                    try { await Notifications.cancelScheduledNotificationAsync(existingId); } catch {}
+                    await AsyncStorage.removeItem(NOTIFICATION_ID_KEY);
+                }
             }
+        } catch (error) {
+            Alert.alert('Error', 'There was a problem saving your settings.');
+        } finally {
+            setShowTimePicker(false);
+            setIsSaving(false);
         }
-
-        setShowTimePicker(false);
     };
 
     const handleRestartTutorial = async () => {
@@ -169,9 +176,16 @@ export default function SettingsPage() {
                 </Pressable>
             </View>
 
-            <Pressable style={styles.saveButton} onPress={saveSettings}>
-                <Text style={styles.saveButtonText}>Save Settings</Text>
+            <Pressable
+                style={[styles.saveButton, isSaving && { opacity: 0.6 }]}
+                onPress={saveSettings}
+                disabled={isSaving}
+            >
+                <Text style={styles.saveButtonText}>
+                    {isSaving ? 'Saving...' : 'Save Settings'}
+                </Text>
             </Pressable>
+
         </View>
     );
 }
