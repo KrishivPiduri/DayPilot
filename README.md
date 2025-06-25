@@ -1,50 +1,48 @@
-# Welcome to your Expo app 👋
+# Support – Deep Thoughts by Potato
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Welcome! This is the official support page for the **Deep Thoughts by Potato** iOS app — a minimalist day planner built for focus, simplicity, and privacy.
 
-## Get started
+---
 
-1. Install dependencies
+## 📝 About the App
 
-   ```bash
-   npm install
-   ```
+**Deep Thoughts by Potato** is a lightweight, distraction-free planner that helps you organize your daily tasks and thoughts.
 
-2. Start the app
+- Simple interface, no clutter
+- Fully offline – your data stays on your phone
+- Local notifications to keep you on track
+- No accounts, no ads, no tracking
 
-   ```bash
-   npx expo start
-   ```
+---
 
-In the output, you'll find options to open the app in a
+## 🔧 Troubleshooting & Help
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+**Having an issue?** Here are a few things to check:
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
+### Notifications aren't working?
+- Go to **Settings > Notifications > Deep Thoughts by Potato** and ensure notifications are enabled.
 
-## Get a fresh project
+### App isn’t saving my notes/tasks?
+- All data is stored locally on your device. Make sure you haven't offloaded the app via iOS storage settings.
 
-When you're ready, run:
+---
 
-```bash
-npm run reset-project
-```
+## 🔒 Privacy
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+We care about your privacy. The app:
+- Does **not** collect any personal information
+- Stores **all** data locally on your device
+- Does **not** use analytics, ads, or third-party tracking
 
-## Learn more
+Read the full [Privacy Policy](https://deepthoughtsbypotato.krishivpiduri.com/privacy) here.
 
-To learn more about developing your project with Expo, look at the following resources:
+---
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+## 📬 Contact
 
-## Join the community
+Still need help or want to report a bug?  
+Email us at **krishivpiduri@gmail.com**
 
-Join our community of developers creating universal apps.
+---
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+Thank you for using Deep Thoughts by Potato!
