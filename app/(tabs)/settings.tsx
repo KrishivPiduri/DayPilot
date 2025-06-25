@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, Pressable, Platform, TextInput, StyleSheet, Alert } from 'react-native';
+import { View, Text, Pressable, Platform, StyleSheet, Alert, Switch } from 'react-native';
+import { Picker } from '@react-native-picker/picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Localization from 'expo-localization';
@@ -9,26 +10,44 @@ import { resetOnboardingStatus } from '@/components/Onboarding';
 const TIMEZONE_KEY = 'settings_timezone';
 const REMINDER_TIME_KEY = 'settings_reminder_time';
 const NOTIFICATION_ID_KEY = 'settings_notification_id';
+const NOTIFICATIONS_ENABLED_KEY = 'settings_notifications_enabled';
+
+const TIMEZONES = [
+    'UTC',
+    'America/New_York',
+    'America/Chicago',
+    'America/Denver',
+    'America/Los_Angeles',
+    'Europe/London',
+    'Europe/Paris',
+    'Asia/Tokyo',
+    'Asia/Shanghai',
+    'Asia/Kolkata'
+];
 
 export default function SettingsPage() {
     const [timezone, setTimezone] = useState(Localization.timezone);
     const [reminderTime, setReminderTime] = useState(new Date());
     const [showTimePicker, setShowTimePicker] = useState(false);
+    const [notificationsEnabled, setNotificationsEnabled] = useState(true);
 
     useEffect(() => {
         (async () => {
             const storedTimezone = await AsyncStorage.getItem(TIMEZONE_KEY);
             const storedReminderTime = await AsyncStorage.getItem(REMINDER_TIME_KEY);
+            const storedNotificationsEnabled = await AsyncStorage.getItem(NOTIFICATIONS_ENABLED_KEY);
+
             if (storedTimezone) setTimezone(storedTimezone);
             if (storedReminderTime) {
                 setReminderTime(new Date(storedReminderTime));
             } else {
-                // Set default reminder time to 9 AM
                 const defaultTime = new Date();
                 defaultTime.setHours(9, 0, 0, 0);
                 await AsyncStorage.setItem(REMINDER_TIME_KEY, defaultTime.toISOString());
                 setReminderTime(defaultTime);
             }
+
+            setNotificationsEnabled(storedNotificationsEnabled !== 'false');
         })();
     }, []);
 
@@ -37,6 +56,8 @@ export default function SettingsPage() {
         if (existingId) {
             try { await Notifications.cancelScheduledNotificationAsync(existingId); } catch {}
         }
+
+        if (!notificationsEnabled) return;
 
         const identifier = await Notifications.scheduleNotificationAsync({
             content: {
@@ -57,7 +78,18 @@ export default function SettingsPage() {
     const saveSettings = async () => {
         await AsyncStorage.setItem(TIMEZONE_KEY, timezone);
         await AsyncStorage.setItem(REMINDER_TIME_KEY, reminderTime.toISOString());
-        await scheduleReminderNotification(reminderTime);
+        await AsyncStorage.setItem(NOTIFICATIONS_ENABLED_KEY, notificationsEnabled.toString());
+
+        if (notificationsEnabled) {
+            await scheduleReminderNotification(reminderTime);
+        } else {
+            const existingId = await AsyncStorage.getItem(NOTIFICATION_ID_KEY);
+            if (existingId) {
+                try { await Notifications.cancelScheduledNotificationAsync(existingId); } catch {}
+                await AsyncStorage.removeItem(NOTIFICATION_ID_KEY);
+            }
+        }
+
         setShowTimePicker(false);
     };
 
@@ -77,32 +109,56 @@ export default function SettingsPage() {
 
             <View style={styles.section}>
                 <Text style={styles.label}>Timezone</Text>
-                <TextInput
-                    style={styles.textInput}
-                    value={timezone}
-                    editable={false}
-                />
+                <View style={styles.pickerWrapper}>
+                    <Picker
+                        selectedValue={timezone}
+                        onValueChange={(itemValue) => setTimezone(itemValue)}
+                        style={styles.picker}
+                        dropdownIconColor="#1a1a1a"
+                    >
+                        {TIMEZONES.map((tz) => (
+                            <Picker.Item
+                                key={tz}
+                                label={tz}
+                                value={tz}
+                                color="#1a1a1a"
+                            />
+                        ))}
+                    </Picker>
+                </View>
             </View>
 
-            <View style={styles.section}>
-                <Text style={styles.label}>Reminder Time</Text>
-                <Pressable style={styles.inputButton} onPress={() => setShowTimePicker(true)}>
-                    <Text style={styles.inputText}>{reminderTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</Text>
-                </Pressable>
-                {showTimePicker && (
-                    <DateTimePicker
-                        value={reminderTime}
-                        mode="time"
-                        is24Hour={true}
-                        display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                        themeVariant="light"
-                        onChange={(event, selectedDate) => {
-                            if (event.type !== 'dismissed' && selectedDate) {
-                                setReminderTime(selectedDate);
-                            }
-                            if (Platform.OS !== 'ios') setShowTimePicker(false);
-                        }}
+            <View style={styles.reminderSection}>
+                <Text style={styles.label}>Daily Reminder</Text>
+                <View style={styles.switchRow}>
+                    <Text style={styles.inputText}>Enable Notifications</Text>
+                    <Switch
+                        value={notificationsEnabled}
+                        onValueChange={setNotificationsEnabled}
                     />
+                </View>
+                {notificationsEnabled && (
+                    <>
+                        <Text style={styles.label}>Reminder Time</Text>
+                        <Pressable style={styles.inputButton} onPress={() => setShowTimePicker(true)}>
+                            <Text style={styles.inputText}>{reminderTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</Text>
+                        </Pressable>
+                        {showTimePicker && (
+                            <DateTimePicker
+                                value={reminderTime}
+                                mode="time"
+                                is24Hour={true}
+                                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                                themeVariant="light"
+                                onChange={(event, selectedDate) => {
+                                    if (event.type !== 'dismissed' && selectedDate) {
+                                        setReminderTime(selectedDate);
+                                    }
+                                    if (Platform.OS !== 'ios') setShowTimePicker(false);
+                                }}
+                            />
+                        )}
+                    </>
                 )}
             </View>
 
@@ -112,10 +168,10 @@ export default function SettingsPage() {
                     <Text style={styles.optionButtonText}>Restart App Tutorial</Text>
                 </Pressable>
             </View>
+
             <Pressable style={styles.saveButton} onPress={saveSettings}>
                 <Text style={styles.saveButtonText}>Save Settings</Text>
             </Pressable>
-
         </View>
     );
 }
@@ -135,19 +191,36 @@ const styles = StyleSheet.create({
     section: {
         marginBottom: 28,
     },
+    reminderSection: {
+        marginVertical: 30
+    },
     label: {
         fontSize: 16,
         fontWeight: '500',
         color: '#3b3b3b',
         marginBottom: 6,
     },
-    textInput: {
-        paddingVertical: 10,
-        paddingHorizontal: 14,
+    pickerContainer: {
         backgroundColor: '#f5f5f5',
         borderRadius: 6,
-        fontSize: 16,
+    },
+    picker: {
+        height: 50,
         color: '#1a1a1a',
+    },
+    pickerItem: {
+        color: '#1a1a1a',
+    },
+    pickerWrapper: {
+        backgroundColor: '#f5f5f5',
+        borderRadius: 6,
+        overflow: 'hidden',
+        marginBottom: 16,
+    },
+    picker: {
+        color: '#1a1a1a',
+        height: 200,
+        width: '100%',
     },
     inputButton: {
         paddingVertical: 10,
@@ -158,6 +231,12 @@ const styles = StyleSheet.create({
     inputText: {
         fontSize: 16,
         color: '#1a1a1a',
+    },
+    switchRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 10,
     },
     saveButton: {
         backgroundColor: '#000000',
