@@ -28,7 +28,7 @@ import Animated, {
 
 // Task data type and daily reset key
 interface Task { id: string; title: string; start: Date; end: Date }
-const DATE_KEY = 'PLAN_TASKS_DATE';
+const DATE_KEY = 'PLAN_TASKS';
 
 const STORAGE_KEY = 'PLAN_TASKS';
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
@@ -59,7 +59,14 @@ export default function PlanScreen() {
             }
             const json = await AsyncStorage.getItem(STORAGE_KEY);
             if (json) {
-                const parsed = JSON.parse(json) as Array<{ id: string; title: string; start: number; end: number; startTime?: number; endTime?: number }>;
+                const text = json.trim();
+                if (!text.startsWith('[')) {
+                    // corrupted tasks data (e.g., a date string), clear and exit
+                    await AsyncStorage.removeItem(STORAGE_KEY);
+                    setTasks([]);
+                    return;
+                }
+                const parsed = JSON.parse(text) as Array<{ id: string; title: string; start: number; end: number; startTime?: number; endTime?: number }>;
                 const normalized = parsed.map(t => {
                     const startVal = t.start ?? t.startTime;
                     const endVal = t.end ?? t.endTime;
