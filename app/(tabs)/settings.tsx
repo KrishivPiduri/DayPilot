@@ -109,6 +109,24 @@ export default function SettingsPage() {
             );
         }
     };
+    // Clear all AsyncStorage data
+    const handleClearStorage = async () => {
+        Alert.alert(
+            'Clear All Data?',
+            'This will remove all settings and tasks. Proceed?',
+            [
+                { text: 'Cancel', style: 'cancel' },
+                { text: 'Clear', style: 'destructive', onPress: async () => {
+                    try {
+                        await AsyncStorage.clear();
+                        Alert.alert('Done', 'All data has been cleared.');
+                    } catch {
+                        Alert.alert('Error', 'Failed to clear data.');
+                    }
+                } }
+            ]
+        );
+    };
 
     return (
         <View style={styles.container}>
@@ -173,6 +191,12 @@ export default function SettingsPage() {
                 <Text style={styles.sectionHeader}>Help & Support</Text>
                 <Pressable style={styles.optionButton} onPress={handleRestartTutorial}>
                     <Text style={styles.optionButtonText}>Restart App Tutorial</Text>
+                </Pressable>
+            </View>
+            <View style={styles.section}>
+                <Text style={styles.sectionHeader}>Danger Zone</Text>
+                <Pressable style={styles.optionButton} onPress={handleClearStorage}>
+                    <Text style={[styles.optionButtonText, { color: 'red' }]}>Clear All Data</Text>
                 </Pressable>
             </View>
 

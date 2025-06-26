@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import type { GestureResponderEvent } from 'react-native';
 import {
     View,
     Text,
@@ -24,41 +25,41 @@ import Animated, {
     runOnJS,
     useAnimatedGestureHandler,
 } from 'react-native-reanimated';
-import { useNavigation } from '@react-navigation/native';
-import TaskEditorScreen from '../EditItem';
-import { createNativeStackNavigator } from '@react-navigation/native-stack';
-const Stack = createNativeStackNavigator();
 
-export default function PlanMainScreen() {
-    return (
-        <Stack.Navigator screenOptions={{headerShown: false}}>
-            <Stack.Screen name="PlanMain" component={PlanScreen}/>
-            <Stack.Screen name="TaskEditor" component={TaskEditorScreen}/>
-        </Stack.Navigator>
-    )
-}
+// Task data type and daily reset key
+interface Task { id: string; title: string; start: Date; end: Date }
+const DATE_KEY = 'PLAN_TASKS_DATE';
 
 const STORAGE_KEY = 'PLAN_TASKS';
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
 const HOUR_HEIGHT = 60;
 const SNAP_MIN = 15;
 
-function PlanScreen() {
-    const navigation = useNavigation();
-    const [tasks, setTasks] = useState([]);
-    const [modalVisible, setModalVisible] = useState(false);
-    const [editingTask, setEditingTask] = useState(null);
-    const [inputTitle, setInputTitle] = useState('');
-    const [inputStart, setInputStart] = useState(new Date());
-    const [inputEnd, setInputEnd] = useState(addMinutes(new Date(), 30));
+export default function PlanScreen() {
+    const [tasks, setTasks] = useState<Task[]>([]);
+    const [modalVisible, setModalVisible] = useState<boolean>(false);
+    const [editingTask, setEditingTask] = useState<Task | null>(null);
+    const [inputTitle, setInputTitle] = useState<string>('');
+    const [inputStart, setInputStart] = useState<Date>(new Date());
+    const [inputEnd, setInputEnd] = useState<Date>(addMinutes(new Date(), 30));
 
     useEffect(() => { loadTasks(); }, []);
 
-    const loadTasks = async () => {
+    // Load tasks and clear storage if a new day has started
+    const loadTasks = async (): Promise<void> => {
         try {
+            const storedDate = await AsyncStorage.getItem(DATE_KEY);
+            const today = new Date().toISOString().slice(0,10);
+            if (storedDate !== today) {
+                // New day: clear tasks
+                await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify([]));
+                await AsyncStorage.setItem(DATE_KEY, today);
+                setTasks([]);
+                return;
+            }
             const json = await AsyncStorage.getItem(STORAGE_KEY);
             if (json) {
-                const parsed = JSON.parse(json);
+                const parsed = JSON.parse(json) as Array<{ id: string; title: string; start: number; end: number; startTime?: number; endTime?: number }>;
                 const normalized = parsed.map(t => {
                     const startVal = t.start ?? t.startTime;
                     const endVal = t.end ?? t.endTime;
@@ -76,8 +77,11 @@ function PlanScreen() {
         }
     };
 
-    const saveTasks = async newTasks => {
+    // Save tasks and update date key to today
+    const saveTasks = async (newTasks: Task[]): Promise<void> => {
         setTasks(newTasks);
+        const today = new Date().toISOString().slice(0,10);
+        await AsyncStorage.setItem(DATE_KEY, today);
         const toStore = newTasks.map(t => ({
             id: t.id,
             title: t.title,
@@ -87,44 +91,34 @@ function PlanScreen() {
         await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(toStore));
     };
 
-    const openEditModal = task => {
-        navigation.navigate('TaskEditor', {
-            task,
-            onSave: updatedTask => {
-                const updated = tasks.map(t => t.id === updatedTask.id ? updatedTask : t);
-                saveTasks(updated);
-            },
-            onDelete: toDelete => {
-                saveTasks(tasks.filter(t => t.id !== toDelete.id));
-            }
-        });
+    const openEditModal = (task: Task): void => {
+        setEditingTask(task);
+        setInputTitle(task.title);
+        setInputStart(task.start);
+        setInputEnd(task.end);
+        setModalVisible(true);
     };
 
-    const openNewModal = time => {
-        navigation.navigate('TaskEditor', {
-            onSave: newTask => {
-                saveTasks([...tasks, newTask]);
-            },
-            task: {
-                start: time,
-                end: addMinutes(time, 30),
-            }
-        });
+    const openNewModal = (time: Date): void => {
+        setEditingTask(null);
+        setInputTitle('');
+        setInputStart(time);
+        setInputEnd(addMinutes(time,30));
+        setModalVisible(true);
     };
-
 
     const handleSave = () => {
         if (!inputTitle.trim()) return Alert.alert('Enter title');
         if (inputEnd <= inputStart) return Alert.alert('End must be after start');
         if (editingTask) {
-            const updated = tasks.map(t =>
+            const updated = tasks.map((t: Task) =>
                 t.id === editingTask.id
                     ? { ...t, title: inputTitle, start: inputStart, end: inputEnd }
                     : t
             );
             saveTasks(updated);
         } else {
-            const newTask = {
+            const newTask: Task = {
                 id: Date.now().toString(),
                 title: inputTitle,
                 start: inputStart,
@@ -135,18 +129,18 @@ function PlanScreen() {
         setModalVisible(false);
     };
 
-    const handleDelete = () => {
+    const handleDelete = (): void => {
         if (!editingTask) return;
         Alert.alert('Delete?', 'Are you sure?', [
             { text: 'Cancel', style: 'cancel' },
             { text: 'Delete', style: 'destructive', onPress: () => {
-                    saveTasks(tasks.filter(t => t.id !== editingTask.id));
+                    saveTasks(tasks.filter((t: Task) => t.id !== editingTask.id));
                     setModalVisible(false);
                 }}
         ]);
     };
 
-    const onGridPress = event => {
+    const onGridPress = (event: GestureResponderEvent): void => {
         const y = event.nativeEvent.locationY;
         const hour = Math.min(Math.max(Math.floor(y / HOUR_HEIGHT), 0), 23);
         const minute = Math.round(((y % HOUR_HEIGHT) / HOUR_HEIGHT) * 60 / SNAP_MIN) * SNAP_MIN;
@@ -223,10 +217,10 @@ function PlanScreen() {
     );
 }
 
-function DraggableEvent({ task, onUpdate, onTap }) {
+function DraggableEvent({ task, onUpdate, onTap }: { task: Task; onUpdate: (task: Task) => void; onTap: () => void }) {
     const { title, start, end } = task;
-    if (isNaN(start) || isNaN(end)) return null;
-    const durationMins = (end - start) / 60000;
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) return null;
+    const durationMins = (end.getTime() - start.getTime()) / 60000;
     const topStart = (start.getHours() * 60 + start.getMinutes()) * (HOUR_HEIGHT / 60);
 
     const translateY = useSharedValue(topStart);
@@ -244,7 +238,7 @@ function DraggableEvent({ task, onUpdate, onTap }) {
     }));
 
     const updateTaskTime = useCallback(
-        newStartMins => {
+        (newStartMins: number) => {
             const hours = Math.floor(newStartMins / 60);
             const mins = newStartMins % 60;
             const newStart = setMinutes(setHours(new Date(), hours), mins);
@@ -298,7 +292,3 @@ const styles = StyleSheet.create({
     eventTitle: { color: '#fff', fontWeight: '600' },
     eventTime: { color: '#e0e0e0', fontSize: 10 },
 });
-
-
-
-
