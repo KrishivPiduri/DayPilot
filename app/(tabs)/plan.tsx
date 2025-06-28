@@ -28,8 +28,7 @@ import Animated, {
 
 // Task data type and daily reset key
 interface Task { id: string; title: string; start: Date; end: Date }
-const DATE_KEY = 'PLAN_TASKS';
-
+const DATE_KEY = 'PLAN_DATE';
 const STORAGE_KEY = 'PLAN_TASKS';
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
 const HOUR_HEIGHT = 60;
@@ -47,40 +46,36 @@ export default function PlanScreen() {
 
     // Load tasks and clear storage if a new day has started
     const loadTasks = async (): Promise<void> => {
-        try {
-            const storedDate = await AsyncStorage.getItem(DATE_KEY);
-            const today = new Date().toISOString().slice(0,10);
-            if (storedDate !== today) {
-                // New day: clear tasks
-                await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify([]));
-                await AsyncStorage.setItem(DATE_KEY, today);
+        const storedDate = await AsyncStorage.getItem(DATE_KEY);
+        const today = new Date().toISOString().slice(0,10);
+        if (storedDate !== today) {
+            // New day: clear tasks
+            await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify([]));
+            await AsyncStorage.setItem(DATE_KEY, today);
+            setTasks([]);
+            return;
+        }
+        const json = await AsyncStorage.getItem(STORAGE_KEY);
+        if (json) {
+            const text = json.trim();
+            if (!text.startsWith('[')) {
+                // corrupted tasks data (e.g., a date string), clear and exit
+                await AsyncStorage.removeItem(STORAGE_KEY);
                 setTasks([]);
                 return;
             }
-            const json = await AsyncStorage.getItem(STORAGE_KEY);
-            if (json) {
-                const text = json.trim();
-                if (!text.startsWith('[')) {
-                    // corrupted tasks data (e.g., a date string), clear and exit
-                    await AsyncStorage.removeItem(STORAGE_KEY);
-                    setTasks([]);
-                    return;
-                }
-                const parsed = JSON.parse(text) as Array<{ id: string; title: string; start: number; end: number; startTime?: number; endTime?: number }>;
-                const normalized = parsed.map(t => {
-                    const startVal = t.start ?? t.startTime;
-                    const endVal = t.end ?? t.endTime;
-                    return {
-                        id: t.id,
-                        title: t.title,
-                        start: new Date(startVal),
-                        end: new Date(endVal),
-                    };
-                });
-                setTasks(normalized);
-            }
-        } catch {
-            Alert.alert('Error loading tasks');
+            const parsed = JSON.parse(text) as Array<{ id: string; title: string; start: number; end: number; startTime?: number; endTime?: number }>;
+            const normalized = parsed.map(t => {
+                const startVal = t.start ?? t.startTime;
+                const endVal = t.end ?? t.endTime;
+                return {
+                    id: t.id,
+                    title: t.title,
+                    start: new Date(startVal),
+                    end: new Date(endVal),
+                };
+            });
+            setTasks(normalized);
         }
     };
 
@@ -92,8 +87,8 @@ export default function PlanScreen() {
         const toStore = newTasks.map(t => ({
             id: t.id,
             title: t.title,
-            start: t.start.getTime(),
-            end: t.end.getTime(),
+            startTime: t.start.getTime(),
+            endTime: t.end.getTime(),
         }));
         await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(toStore));
     };

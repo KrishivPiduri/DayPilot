@@ -22,20 +22,16 @@ export default function TodayScreen() {
     useFocusEffect(
         React.useCallback(() => {
             const loadTasks = async () => {
-                try {
-                    const json = await AsyncStorage.getItem(STORAGE_KEY);
-                    if (json) {
-                        const parsed = JSON.parse(json).map((t: any) => ({
-                            ...t,
-                            startTime: new Date(t.startTime),
-                            endTime: new Date(t.endTime),
-                        }));
-                        setTasks(parsed);
-                    } else {
-                        setTasks([]);
-                    }
-                } catch (err) {
-                    Alert.alert('Error loading tasks');
+                const json = await AsyncStorage.getItem(STORAGE_KEY);
+                if (json) {
+                    const parsed = JSON.parse(json).map((t: any) => ({
+                        ...t,
+                        startTime: new Date(t.startTime),
+                        endTime: new Date(t.endTime),
+                    }));
+                    setTasks(parsed);
+                } else {
+                    setTasks([]);
                 }
             };
             loadTasks();
