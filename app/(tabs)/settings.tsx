@@ -141,9 +141,9 @@ export default function SettingsPage() {
                 <ThemedText style={styles.label}>Theme</ThemedText>
                 <View style={styles.pickerWrapper}>
                     <Picker selectedValue={themePref} onValueChange={(val) => setThemePref(val)} style={styles.picker}>
-                        <Picker.Item label="System" value="system" />
-                        <Picker.Item label="Light" value="light" />
-                        <Picker.Item label="Dark" value="dark" />
+                        <Picker.Item label="System" value="system" color="#1a1a1a" />
+                        <Picker.Item label="Light" value="light" color="#1a1a1a" />
+                        <Picker.Item label="Dark" value="dark" color="#1a1a1a" />
                     </Picker>
                 </View>
             </View>
