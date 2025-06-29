@@ -1,11 +1,14 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, Pressable, Platform, StyleSheet, Alert, Switch } from 'react-native';
+import { View, Text, Pressable, Platform, StyleSheet, Alert, Switch, ScrollView } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Localization from 'expo-localization';
 import * as Notifications from 'expo-notifications';
 import { resetOnboardingStatus } from '@/components/Onboarding';
+import { ThemedView } from '@/components/ThemedView';
+import { ThemedText } from '@/components/ThemedText';
+import { useThemeContext } from '@/hooks/ThemeContext';
 
 const TIMEZONE_KEY = 'settings_timezone';
 const REMINDER_TIME_KEY = 'settings_reminder_time';
@@ -26,6 +29,7 @@ const TIMEZONES = [
 ];
 
 export default function SettingsPage() {
+    const { themePref, setThemePref } = useThemeContext();
     const [timezone, setTimezone] = useState(Localization.timezone);
     const [reminderTime, setReminderTime] = useState(new Date());
     const [showTimePicker, setShowTimePicker] = useState(false);
@@ -129,8 +133,20 @@ export default function SettingsPage() {
     };
 
     return (
-        <View style={styles.container}>
-            <Text style={styles.title}>Settings</Text>
+        <ThemedView style={styles.container}>
+            <ScrollView contentContainerStyle={styles.contentContainer}>
+             <ThemedText type="title" style={styles.title}>Settings</ThemedText>
+            {/* Theme selection */}
+            <View style={styles.section}>
+                <ThemedText style={styles.label}>Theme</ThemedText>
+                <View style={styles.pickerWrapper}>
+                    <Picker selectedValue={themePref} onValueChange={(val) => setThemePref(val)} style={styles.picker}>
+                        <Picker.Item label="System" value="system" />
+                        <Picker.Item label="Light" value="light" />
+                        <Picker.Item label="Dark" value="dark" />
+                    </Picker>
+                </View>
+            </View>
 
             <View style={styles.section}>
                 <Text style={styles.label}>Timezone</Text>
@@ -166,7 +182,7 @@ export default function SettingsPage() {
                     <>
                         <Text style={styles.label}>Reminder Time</Text>
                         <Pressable style={styles.inputButton} onPress={() => setShowTimePicker(true)}>
-                            <Text style={styles.inputText}>{reminderTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</Text>
+                            <ThemedText style={styles.inputText}>{reminderTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</ThemedText>
                         </Pressable>
                         {showTimePicker && (
                             <DateTimePicker
@@ -190,13 +206,13 @@ export default function SettingsPage() {
             <View style={styles.section}>
                 <Text style={styles.sectionHeader}>Help & Support</Text>
                 <Pressable style={styles.optionButton} onPress={handleRestartTutorial}>
-                    <Text style={styles.optionButtonText}>Restart App Tutorial</Text>
+                    <ThemedText style={styles.optionButtonText}>Restart App Tutorial</ThemedText>
                 </Pressable>
             </View>
             <View style={styles.section}>
                 <Text style={styles.sectionHeader}>Danger Zone</Text>
                 <Pressable style={styles.optionButton} onPress={handleClearStorage}>
-                    <Text style={[styles.optionButtonText, { color: 'red' }]}>Clear All Data</Text>
+                    <ThemedText style={[styles.optionButtonText, { color: 'red' }]}>Clear All Data</ThemedText>
                 </Pressable>
             </View>
 
@@ -205,20 +221,23 @@ export default function SettingsPage() {
                 onPress={saveSettings}
                 disabled={isSaving}
             >
-                <Text style={styles.saveButtonText}>
+                <ThemedText style={styles.saveButtonText}>
                     {isSaving ? 'Saving...' : 'Save Settings'}
-                </Text>
+                </ThemedText>
             </Pressable>
-
-        </View>
+            </ScrollView>
+        </ThemedView>
     );
 }
 
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#ffffff',
         padding: 24,
+    },
+    contentContainer: {
+        flexGrow: 1,
+        justifyContent: 'center',
     },
     title: {
         fontSize: 28,

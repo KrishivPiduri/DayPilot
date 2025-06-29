@@ -18,6 +18,8 @@ import {
     PanGestureHandler,
     GestureHandlerRootView,
 } from 'react-native-gesture-handler';
+import { ThemedView } from '@/components/ThemedView';
+import { ThemedText } from '@/components/ThemedText';
 import Animated, {
     useSharedValue,
     useAnimatedStyle,
@@ -152,26 +154,27 @@ export default function PlanScreen() {
 
     return (
         <GestureHandlerRootView style={{ flex: 1 }}>
-            <ScrollView contentContainerStyle={styles.container}>
-                <Text style={styles.heading}>Your Schedule</Text>
-                <Pressable style={styles.grid} onPress={onGridPress}>
-                    {HOURS.map(hour => (
-                        <View key={hour} style={[styles.hourRow, { top: hour * HOUR_HEIGHT }]}>
-                            <Text style={styles.hourLabel}>{format(setHours(new Date(), hour), 'ha')}</Text>
-                            <View style={styles.line} />
-                        </View>
-                    ))}
-                    {tasks.map(task => (
-                        <DraggableEvent
-                            key={task.id}
-                            task={task}
-                            onUpdate={updated => saveTasks(tasks.map(t => t.id === updated.id ? updated : t))}
-                            onTap={() => openEditModal(task)}
-                        />
-                    ))}
-                </Pressable>
-            </ScrollView>
-
+            <ThemedView style={{ flex: 1 }}>
+              <ScrollView contentContainerStyle={styles.container}>
+                <ThemedText type="title" style={styles.heading}>Your Schedule</ThemedText>
+                 <Pressable style={styles.grid} onPress={onGridPress}>
+                     {HOURS.map(hour => (
+                         <View key={hour} style={[styles.hourRow, { top: hour * HOUR_HEIGHT }]}>
+                             <Text style={styles.hourLabel}>{format(setHours(new Date(), hour), 'ha')}</Text>
+                             <View style={styles.line} />
+                         </View>
+                     ))}
+                     {tasks.map(task => (
+                         <DraggableEvent
+                             key={task.id}
+                             task={task}
+                             onUpdate={updated => saveTasks(tasks.map(t => t.id === updated.id ? updated : t))}
+                             onTap={() => openEditModal(task)}
+                         />
+                     ))}
+                 </Pressable>
+              </ScrollView>
+            </ThemedView>
             <Modal visible={modalVisible} transparent animationType="slide">
                 <View style={styles.modalBackdrop}>
                     <View style={styles.modalContent}>
@@ -274,7 +277,7 @@ function DraggableEvent({ task, onUpdate, onTap }: { task: Task; onUpdate: (task
 }
 
 const styles = StyleSheet.create({
-    container: { paddingBottom: 100, backgroundColor: "white", paddingTop: 40 },
+    container: { paddingBottom: 100, paddingTop: 40 /* backgroundColor via ThemedView */ },
     save: { backgroundColor: '#007bff', padding: 12, borderRadius: 4, marginRight: 16 },
     cancel: { backgroundColor: 'gray', padding: 12, borderRadius: 4 },
     cancelText: { color: '#fff', fontWeight: '600' },

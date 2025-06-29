@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import {
-    View, Text, FlatList, StyleSheet, Alert,
+    FlatList, StyleSheet, Alert, View,
 } from 'react-native';
+import { ThemedView } from '@/components/ThemedView';
+import { ThemedText } from '@/components/ThemedText';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { isAfter, isBefore, isSameDay, isWithinInterval } from 'date-fns';
 import { useFocusEffect } from '@react-navigation/native';
@@ -53,40 +55,40 @@ export default function TodayScreen() {
         .sort((a, b) => a.startTime.getTime() - b.startTime.getTime());
 
     const renderTask = (task: Task, isCurrent = false) => (
-        <View style={[styles.taskContainer, isCurrent && styles.currentTaskContainer]} key={task.id}>
+        <ThemedView style={[styles.taskContainer, isCurrent && styles.currentTaskContainer]} key={task.id}>
             <View style={styles.taskTextWrapper}>
-                <Text style={[styles.taskTitle, isCurrent && styles.currentTaskTitle]} numberOfLines={1}>
+                <ThemedText style={[styles.taskTitle, isCurrent && styles.currentTaskTitle]} numberOfLines={1}>
                     {task.title}
-                </Text>
-                <Text style={styles.taskTime}>
+                </ThemedText>
+                <ThemedText style={styles.taskTime}>
                     {task.startTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} -
                     {task.endTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                </Text>
+                </ThemedText>
             </View>
             {task.important && <View style={styles.importantDot} />}
-        </View>
+        </ThemedView>
     );
 
     return (
-        <View style={styles.container}>
-            <Text style={styles.sectionTitle}>Earlier Today</Text>
+        <ThemedView style={styles.container}>
+            <ThemedText type="subtitle" style={styles.sectionTitle}>Earlier Today</ThemedText>
             {earlierTasks.length > 0 ? (
                 earlierTasks.map(task => renderTask(task))
             ) : (
-                <Text>No earlier tasks</Text>
+                <ThemedText>No earlier tasks</ThemedText>
             )}
 
-            <Text style={[styles.sectionTitle, { marginTop: 32 }]}>Now</Text>
-            {currentTask ? renderTask(currentTask, true) : <Text>No current task</Text>}
+            <ThemedText type="subtitle" style={[styles.sectionTitle, { marginTop: 32 }]}>Now</ThemedText>
+            {currentTask ? renderTask(currentTask, true) : <ThemedText>No current task</ThemedText>}
 
-            <Text style={[styles.sectionTitle, { marginTop: 32 }]}>Next Up</Text>
+            <ThemedText type="subtitle" style={[styles.sectionTitle, { marginTop: 32 }]}>Next Up</ThemedText>
             <FlatList
                 data={upcomingTasks}
                 keyExtractor={item => item.id}
                 renderItem={({ item }) => renderTask(item)}
                 contentContainerStyle={{ paddingBottom: 16 }}
             />
-        </View>
+        </ThemedView>
     );
 }
 
@@ -95,12 +97,12 @@ const styles = StyleSheet.create({
         flex: 1,
         paddingHorizontal: 24,
         paddingTop: 48,
-        backgroundColor: '#fff',
+        // backgroundColor handled by ThemedView
     },
     sectionTitle: {
         fontSize: 18,
         fontWeight: '600',
-        color: '#222',
+        // color handled by ThemedText
         marginBottom: 12,
     },
     taskContainer: {
@@ -109,7 +111,7 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         paddingVertical: 10,
         borderBottomWidth: 1,
-        borderBottomColor: '#eee',
+        borderBottomColor: '#ccc', // neutral divider
     },
     currentTaskContainer: {},
     taskTextWrapper: {
@@ -119,15 +121,15 @@ const styles = StyleSheet.create({
     taskTitle: {
         fontSize: 16,
         fontWeight: '400',
-        color: '#444',
+        // color handled by ThemedText
     },
     currentTaskTitle: {
         fontWeight: '600',
-        color: '#000',
+        // color handled by ThemedText
     },
     taskTime: {
         fontSize: 12,
-        color: '#888',
+        // color handled by ThemedText
         marginTop: 2,
     },
     importantDot: {
