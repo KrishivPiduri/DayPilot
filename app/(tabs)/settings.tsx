@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, Pressable, Platform, StyleSheet, Alert, Switch, ScrollView } from 'react-native';
+import { View, Pressable, Platform, StyleSheet, Alert, Switch, ScrollView } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -9,6 +9,7 @@ import { resetOnboardingStatus } from '@/components/Onboarding';
 import { ThemedView } from '@/components/ThemedView';
 import { ThemedText } from '@/components/ThemedText';
 import { useThemeContext } from '@/hooks/ThemeContext';
+import { useThemeColor } from '@/hooks/useThemeColor';
 
 const TIMEZONE_KEY = 'settings_timezone';
 const REMINDER_TIME_KEY = 'settings_reminder_time';
@@ -29,12 +30,19 @@ const TIMEZONES = [
 ];
 
 export default function SettingsPage() {
-    const { themePref, setThemePref } = useThemeContext();
+    const { themePref, setThemePref, theme } = useThemeContext();
     const [timezone, setTimezone] = useState(Localization.timezone);
     const [reminderTime, setReminderTime] = useState(new Date());
     const [showTimePicker, setShowTimePicker] = useState(false);
     const [notificationsEnabled, setNotificationsEnabled] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
+
+    // Get theme colors for UI elements
+    const textColor = useThemeColor({}, 'text');
+    const backgroundColor = useThemeColor({}, 'background');
+    const cardBackgroundColor = useThemeColor({ light: '#f5f5f5', dark: '#2a2a2a' }, 'card');
+    const buttonBackgroundColor = useThemeColor({ light: '#e0e0e0', dark: '#3a3a3a' }, 'buttonBackground');
+    const accentColor = useThemeColor({ light: '#000000', dark: '#ffffff' }, 'tint');
 
     useEffect(() => {
         (async () => {
@@ -139,30 +147,35 @@ export default function SettingsPage() {
             {/* Theme selection */}
             <View style={styles.section}>
                 <ThemedText style={styles.label}>Theme</ThemedText>
-                <View style={styles.pickerWrapper}>
-                    <Picker selectedValue={themePref} onValueChange={(val) => setThemePref(val)} style={styles.picker}>
-                        <Picker.Item label="System" value="system" color="#1a1a1a" />
-                        <Picker.Item label="Light" value="light" color="#1a1a1a" />
-                        <Picker.Item label="Dark" value="dark" color="#1a1a1a" />
+                <View style={[styles.pickerWrapper, { backgroundColor: cardBackgroundColor }]}>
+                    <Picker
+                        selectedValue={themePref}
+                        onValueChange={(val) => setThemePref(val)}
+                        style={[styles.picker, { color: textColor }]}
+                        dropdownIconColor={textColor}
+                    >
+                        <Picker.Item label="System" value="system" color={theme === 'dark' ? '#ffffff' : '#1a1a1a'} />
+                        <Picker.Item label="Light" value="light" color={theme === 'dark' ? '#ffffff' : '#1a1a1a'} />
+                        <Picker.Item label="Dark" value="dark" color={theme === 'dark' ? '#ffffff' : '#1a1a1a'} />
                     </Picker>
                 </View>
             </View>
 
             <View style={styles.section}>
-                <Text style={styles.label}>Timezone</Text>
-                <View style={styles.pickerWrapper}>
+                <ThemedText style={styles.label}>Timezone</ThemedText>
+                <View style={[styles.pickerWrapper, { backgroundColor: cardBackgroundColor }]}>
                     <Picker
                         selectedValue={timezone}
                         onValueChange={(itemValue) => setTimezone(itemValue)}
-                        style={styles.picker}
-                        dropdownIconColor="#1a1a1a"
+                        style={[styles.picker, { color: textColor }]}
+                        dropdownIconColor={textColor}
                     >
                         {TIMEZONES.map((tz) => (
                             <Picker.Item
                                 key={tz}
                                 label={tz}
                                 value={tz}
-                                color="#1a1a1a"
+                                color={theme === 'dark' ? '#ffffff' : '#1a1a1a'}
                             />
                         ))}
                     </Picker>
@@ -170,18 +183,22 @@ export default function SettingsPage() {
             </View>
 
             <View style={styles.reminderSection}>
-                <Text style={styles.label}>Daily Reminder</Text>
+                <ThemedText style={styles.label}>Daily Reminder</ThemedText>
                 <View style={styles.switchRow}>
-                    <Text style={styles.inputText}>Enable Notifications</Text>
+                    <ThemedText style={styles.inputText}>Enable Notifications</ThemedText>
                     <Switch
                         value={notificationsEnabled}
                         onValueChange={setNotificationsEnabled}
+                        trackColor={{ false: '#767577', true: accentColor }}
                     />
                 </View>
                 {notificationsEnabled && (
                     <>
-                        <Text style={styles.label}>Reminder Time</Text>
-                        <Pressable style={styles.inputButton} onPress={() => setShowTimePicker(true)}>
+                        <ThemedText style={styles.label}>Reminder Time</ThemedText>
+                        <Pressable
+                            style={[styles.inputButton, { backgroundColor: cardBackgroundColor }]}
+                            onPress={() => setShowTimePicker(true)}
+                        >
                             <ThemedText style={styles.inputText}>{reminderTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</ThemedText>
                         </Pressable>
                         {showTimePicker && (
@@ -190,7 +207,7 @@ export default function SettingsPage() {
                                 mode="time"
                                 is24Hour={true}
                                 display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                                themeVariant="light"
+                                themeVariant={theme}
                                 onChange={(event, selectedDate) => {
                                     if (event.type !== 'dismissed' && selectedDate) {
                                         setReminderTime(selectedDate);
@@ -204,24 +221,30 @@ export default function SettingsPage() {
             </View>
 
             <View style={styles.section}>
-                <Text style={styles.sectionHeader}>Help & Support</Text>
-                <Pressable style={styles.optionButton} onPress={handleRestartTutorial}>
+                <ThemedText style={styles.sectionHeader}>Help & Support</ThemedText>
+                <Pressable
+                    style={[styles.optionButton, { backgroundColor: buttonBackgroundColor }]}
+                    onPress={handleRestartTutorial}
+                >
                     <ThemedText style={styles.optionButtonText}>Restart App Tutorial</ThemedText>
                 </Pressable>
             </View>
             <View style={styles.section}>
-                <Text style={styles.sectionHeader}>Danger Zone</Text>
-                <Pressable style={styles.optionButton} onPress={handleClearStorage}>
+                <ThemedText style={styles.sectionHeader}>Danger Zone</ThemedText>
+                <Pressable
+                    style={[styles.optionButton, { backgroundColor: buttonBackgroundColor }]}
+                    onPress={handleClearStorage}
+                >
                     <ThemedText style={[styles.optionButtonText, { color: 'red' }]}>Clear All Data</ThemedText>
                 </Pressable>
             </View>
 
             <Pressable
-                style={[styles.saveButton, isSaving && { opacity: 0.6 }]}
+                style={[styles.saveButton, { backgroundColor: accentColor }, isSaving && { opacity: 0.6 }]}
                 onPress={saveSettings}
                 disabled={isSaving}
             >
-                <ThemedText style={styles.saveButtonText}>
+                <ThemedText style={[styles.saveButtonText, { color: backgroundColor }]}>
                     {isSaving ? 'Saving...' : 'Save Settings'}
                 </ThemedText>
             </Pressable>
@@ -243,7 +266,6 @@ const styles = StyleSheet.create({
         fontSize: 28,
         fontWeight: '600',
         marginBottom: 32,
-        color: '#2e2e2e',
     },
     section: {
         marginBottom: 28,
@@ -254,40 +276,24 @@ const styles = StyleSheet.create({
     label: {
         fontSize: 16,
         fontWeight: '500',
-        color: '#3b3b3b',
         marginBottom: 6,
     },
-    pickerContainer: {
-        backgroundColor: '#f5f5f5',
-        borderRadius: 6,
-    },
-    picker: {
-        height: 50,
-        color: '#1a1a1a',
-    },
-    pickerItem: {
-        color: '#1a1a1a',
-    },
     pickerWrapper: {
-        backgroundColor: '#f5f5f5',
         borderRadius: 6,
         overflow: 'hidden',
         marginBottom: 16,
     },
     picker: {
-        color: '#1a1a1a',
         height: 200,
         width: '100%',
     },
     inputButton: {
         paddingVertical: 10,
         paddingHorizontal: 14,
-        backgroundColor: '#f5f5f5',
         borderRadius: 6,
     },
     inputText: {
         fontSize: 16,
-        color: '#1a1a1a',
     },
     switchRow: {
         flexDirection: 'row',
@@ -296,31 +302,26 @@ const styles = StyleSheet.create({
         marginBottom: 10,
     },
     saveButton: {
-        backgroundColor: '#000000',
         paddingVertical: 12,
         borderRadius: 6,
         alignItems: 'center',
     },
     saveButtonText: {
-        color: '#ffffff',
         fontSize: 16,
         fontWeight: '500',
     },
     sectionHeader: {
         fontSize: 18,
         fontWeight: '600',
-        color: '#2e2e2e',
         marginBottom: 12,
     },
     optionButton: {
         paddingVertical: 10,
         paddingHorizontal: 14,
-        backgroundColor: '#e0e0e0',
         borderRadius: 6,
         alignItems: 'center',
     },
     optionButtonText: {
         fontSize: 16,
-        color: '#1a1a1a',
     },
 });
